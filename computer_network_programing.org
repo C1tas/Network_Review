@@ -174,7 +174,9 @@ int isfdtype(int fd, int fdtype);
 
 
 * 父进程先于子进程结束和晚于子进程结束差异
-一个现有进程可以调用fork函数创建一个新进程。由fork创建的新进程被称为子进程（child process）。fork函数被调用一次但返回两次。两次返回的唯一区别是子进程中返回0值而父进程中返回子进程ID。
+#+BEGIN_SRC
+一个现有进程可以调用fork函数创建一个新进程。由fork创建的新进程被称为子进程（child process）。
+fork函数被调用一次但返回两次。两次返回的唯一区别是子进程中返回0值而父进程中返回子进程ID。
 
 1）父进程先于子进程终止
 
@@ -189,6 +191,8 @@ int isfdtype(int fd, int fdtype);
        b）父进程又没有调用wait函数 （非父子进程则未调用waitpid函数），此种情况子进程进入僵死状态即僵尸进程，并且会一直保持下去直到系统重启。子进程处于僵死状态时，内核只保存进程的一些必要信息以备父进程所需。此时子进程始终占有着资源，同时也减少了系统可以创建的最大进程数。
 
     僵死状态：一个已经终止、但是其父进程尚未对其进行善后处理(获取终止子进程的有关信息，释放它仍占有的资源)的进程被称为僵死进程(zombie)。ps命令将僵死进程的状态打印为Z 。
+
+#+END_SRC
 
 * 僵尸进程
 孤儿进程：一个父进程退出，而它的一个或多个子进程还在运行，那么那些子进程将成为孤儿进程。孤儿进程将被init进程(进程号为1)所收养，并由init进程对它们完成状态收集工作。
@@ -369,12 +373,154 @@ void pthread_exit(void *status);
 * 互斥锁作用
 在编程中，引入了对象互斥锁的概念，来保证共享数据操作的完整性。每个对象都对应于一个可称为" 互斥锁" 的标记，这个标记用来保证在任一时刻，只能有一个线程访问该对象。
 
+** 例子程序
+
+#+BEGIN_SRC c
+#include <pthread.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <stdio.h>
+int myglobal=0;
+pthread_mutex_t mymutex=PTHREAD_MUTEX_INITIALIZER;
+ void *thread_function(void *arg) {
+  int i,j;
+  for ( i=0; i<5; i++) {
+    pthread_mutex_lock(&mymutex);
+    j=myglobal;
+    j=j+1;
+    printf(".");
+    fflush(stdout);
+    sleep(1);
+    myglobal=j;
+    pthread_mutex_unlock(&mymutex);
+  }
+  return NULL;
+}
+int main(void) {
+  pthread_t mythread;
+  int i;
+  if ( pthread_create( &mythread, NULL, thread_function, NULL) ) {
+    printf("error creating thread.");
+    abort();
+  }
+  for ( i=0; i<5; i++) {
+    pthread_mutex_lock(&mymutex);
+    myglobal=myglobal+1;
+    pthread_mutex_unlock(&mymutex);
+    printf("o");
+    fflush(stdout);
+    sleep(1);
+  }
+  if ( pthread_join ( mythread, NULL ) ) {
+    printf("error joining thread.");
+    abort();
+  }
+  printf("\nmyglobal equals %d\n",myglobal);
+  exit(0);
+}
+
+#+END_SRC
 
 * 多线程中传参数的几种方法有何差异
+#+BEGIN_SRC c
+//传递参数的普通方法
+//封装在一个结构体中
+void *start_routine(void *arg);
+struct ARG {
+    int connfd;
+    int other;
+}
+    int main() {
+        struct ARG *arg;
+        …
+            While(1){
+            if((connfd = accept(sockfd,NULL,NULL))== -1){
+                …
+                    }
+            arg.connfd = connfd;
+            pthread_create(&tid, NULL, start_routine, (void *)&arg);
+            …
+                }
+    }
+void *start_routine(void *arg) {
+    ARG info;
+    info.connfd = ((ARG *)arg) -> connfd;
+    info.other = ((ARG *)arg) -> other;
+    …}
+//优点:
+//缺点:对一个客户可以工作,多个客户则出现问题
+
+//通过指针传递参数
+
+void *start_routine(void *arg);
+
+void *start_routine(void *arg) {
+    int connfd;
+    connfd = (int)arg;
+}
+
+int main(void) {
+    int connfd;
+    //
+    pthread_create(&tid, NULL, start_routine, (void *)connfd);
+    //
+}
+
+//优点:简单
+//缺点:arg类型必须能被正确的转换成通用指针,而且能传递的参数只有一个
+
+
+
+//通过分配arg的空间来传递参数
+//主线程首先为每个新线程分配arg的空间,再将arg传递给新线程使用,新线程使用完释放该空间
+void *start_routine(void *arg);
+int main(void) {
+    struct ARG * arg;
+    int connfd;
+    …
+        loop {
+        …
+            if((connfd = accept(sockfd,NULL,NULL))== -1){
+                …
+                    }
+        arg = new ARG;
+        arg -> connfd = connfd;
+        pthread_create(&tid, NULL, start_routine, (void *)arg);
+        …
+            }
+}
+void *start_routine(void *arg) {
+    struct ARG info;
+    info.connfd = ((ARG *)arg) ->connfd;
+    …
+        /*handle client*/
+        delete arg;
+}
+//优点:
+//缺点:浪费空间
+
+
+通过加锁等同步设施来实现传递参数
+
+pthread_mutex_lock(pthread_mutex_t  *mptr);
+
+/* 返回：成功0，否则返回错误码 */
+/* mptr：指向互斥锁的指针。 */
+/* 该函数接受一个指向互斥锁的指针作为参数并将其锁定。如果互斥锁已经被锁定，调用者将进入睡眠状态。函数返回时，将唤醒调用者。 */
+/* 如果互斥锁是静态分配的，就将mptr初始化为常值PTHREAD_MUTEX_INITIALIZER。  */
+
+pthread_mutex_unlock(pthread_mutex_t  *mptr);
+//用于互斥锁解锁操作。
+
+/* 返回：成功0，否则返回错误码 */
+
+
+#+END_SRC
 
 
 * 线程安全性TSD编程例程
 
+** 例子程序
 Server:
 
 #+BEGIN_SRC c
@@ -632,7 +778,7 @@ SHUT_WD:关闭连接写的这一半,在TCP场合下,这种情况称为半关闭(
 
 * 非阻塞IO工作模式
 
-阻塞I/O和非阻塞I/O的区别: 应用程序的调用是否理解返回
+阻塞I/O和非阻塞I/O的区别: 应用程序的调用是否立即返回
 
 
 * 同步io 与异步io
@@ -650,16 +796,6 @@ SHUT_WD:关闭连接写的这一半,在TCP场合下,这种情况称为半关闭(
 
 
 * 域名解析相关函数
-
-
-* 获取本地址和远程地址方法
-
-
-** gethostname
-#+BEGIN_SRC c
-gethostname(char *name, size_t namelen)
-#+END_SRC
-返回当前主机的名字,name是指向主机名存储位置的指针,namelen是此数组的大小
 
 ** gethostbyname
 #+BEGIN_SRC c
@@ -679,6 +815,17 @@ struct hostent *gethostbyname(const char *hostname)
   #define haddr h_addr_list[0] // 在列表中的第一个地址
 
 #+END_SRC
+
+
+* 获取本地址和远程地址方法
+
+
+** gethostname
+#+BEGIN_SRC c
+gethostname(char *name, size_t namelen)
+#+END_SRC
+返回当前主机的名字,name是指向主机名存储位置的指针,namelen是此数组的大小
+
 
 
 * 原始套接字作用以及创建方式
@@ -2244,8 +2391,97 @@ int main (int argc, const char **argv){
 *** 1.
 请说明给新线程传递参数方法有那些?这些方法的优缺点是什么?
 
-#+BEGIN_SRC
+#+BEGIN_SRC c
+  //传递参数的普通方法
+  //封装在一个结构体中
+  void *start_routine(void *arg);
+  struct ARG {
+      int connfd;
+      int other;
+  }
+      int main() {
+          struct ARG *arg;
+          …
+              While(1){
+              if((connfd = accept(sockfd,NULL,NULL))== -1){
+                  …
+                      }
+              arg.connfd = connfd;
+              pthread_create(&tid, NULL, start_routine, (void *)&arg);
+              …
+                  }
+      }
+  void *start_routine(void *arg) {
+      ARG info;
+      info.connfd = ((ARG *)arg) -> connfd;
+      info.other = ((ARG *)arg) -> other;
+      …}
+  //优点:
+  //缺点:对一个客户可以工作,多个客户则出现问题
 
+  //通过指针传递参数
+
+  void *start_routine(void *arg);
+
+  void *start_routine(void *arg) {
+      int connfd;
+      connfd = (int)arg;
+  }
+
+  int main(void) {
+      int connfd;
+      //
+      pthread_create(&tid, NULL, start_routine, (void *)connfd);
+      //
+  }
+
+  //优点:简单
+  //缺点:arg类型必须能被正确的转换成通用指针,而且能传递的参数只有一个
+
+
+
+  //通过分配arg的空间来传递参数
+  //主线程首先为每个新线程分配arg的空间,再将arg传递给新线程使用,新线程使用完释放该空间
+  void *start_routine(void *arg);
+  int main(void) {
+      struct ARG * arg;
+      int connfd;
+      …
+          loop {
+          …
+              if((connfd = accept(sockfd,NULL,NULL))== -1){
+                  …
+                      }
+          arg = new ARG;
+          arg -> connfd = connfd;
+          pthread_create(&tid, NULL, start_routine, (void *)arg);
+          …
+              }
+  }
+  void *start_routine(void *arg) {
+      struct ARG info;
+      info.connfd = ((ARG *)arg) ->connfd;
+      …
+          /*handle client*/
+          delete arg;
+  }
+  //优点:
+  //缺点:浪费空间
+
+
+  通过加锁等同步设施来实现传递参数
+
+  pthread_mutex_lock(pthread_mutex_t  *mptr);
+
+  /* 返回：成功0，否则返回错误码 */
+  /* mptr：指向互斥锁的指针。 */
+  /* 该函数接受一个指向互斥锁的指针作为参数并将其锁定。如果互斥锁已经被锁定，调用者将进入睡眠状态。函数返回时，将唤醒调用者。 */
+  /* 如果互斥锁是静态分配的，就将mptr初始化为常值PTHREAD_MUTEX_INITIALIZER。  */
+
+  pthread_mutex_unlock(pthread_mutex_t  *mptr);
+  //用于互斥锁解锁操作。
+
+  /* 返回：成功0，否则返回错误码 */
 #+END_SRC
 
 *** 2.
@@ -2262,13 +2498,34 @@ int pthread_key_delete(pthread_key_t key);
 答案:
 
 #+BEGIN_SRC
+pthread_key_create 函数
+在进程内部分配一个TSD的关键字.参数key指向创建的关键字,该关键字对于一个进程中的所有线程是唯一的.
+每个进程只能调用一次.在可以创建之前都是NULL.一旦被创建,每个线程都能为该线程绑定一个值
+参数destructor是一个可选析构函数在线程推出时,析构函数被调用
 
+pthread_setspecific 函数
+为TSD关键字绑定一个与本线程相关的值key是TSD关键字, value是本线程相关的值
+
+pthread_getspecific 函数
+获得调用线程相关的TSD关键字绑定的值 key是TSD关键字
+
+pthread_key_delete 函数
+清除线程相关TSD关键字绑定的值, key是TSD关键字
 #+END_SRC
 
 *** 3.
 请比较信号驱动I/O模式与非阻塞I/O模式.并说明如何在程序中将套接口设置为非阻塞I/O模式
 
 #+BEGIN_SRC
+信号驱动I/O在未准备好时则一直等待,直到准备好,发送一个SIGIO信号量给信号处理程序再调用recvfrom拷贝数据 阻塞于数据拷贝到进程期间
+
+非阻塞I/O则是在未准备好期间一直调用recvfrom直到返回成功 则拷贝数据
+
+设置方式
+
+flags = fcntl(0, F_GETFL, 0);
+flags |= O_NONBLOCK;
+fcntl(0, F_SETFL, flags);
 
 #+END_SRC
 
@@ -2276,15 +2533,39 @@ int pthread_key_delete(pthread_key_t key);
 *** 4.
 请写出select()函数实现I/O多路复用的步骤
 
-#+BEGIN_SRC
+#+BEGIN_SRC c
+  int rdfs;
 
+  struct timeval tv;
+  tv.tv_sec = 0;
+  tv.tv_usec = 0;
+
+  FD_ZERO(&rdfs);
+  FD_SET(fileno(stdin), &rdfs);
+  FD_SET(sockfd, &rdfs);
+  maxfd = max(fileno(stdin), sockfd) + 1;
+  //fileno(stdin)获得标准输入描述符
+  retval = select(maxfd, &rdfs, NULL, NULL, &tv);
+  if(FD_ISSET(sockfd, &rdfs)){
+      //读socket
+  }
+
+  if(FD_ISSET(fileno(stdin), &rdfs)){
+      //读stdin
+  }
 #+END_SRC
 
 
 *** 5.
 请简述TCP和UDP协议的网络通信调用bind()和connect()函数的作用分别是什么
 #+BEGIN_SRC
+TCP:
+bind: 为socket函数产生的套接字分配一个本地协议地址,建立地址与套接字对应关系
+connect: 客户端,配置套接字,建立TCP服务器连接(激发三次握手)
 
+UDP
+bind: 为socket函数产生的套接字分配一个本地协议地址,建立地址与套接字对应关系
+connect: 为套接字绑定通信IP地址和端口号,需要使用read和write来与对方通信
 #+END_SRC
 
 
@@ -2292,15 +2573,30 @@ int pthread_key_delete(pthread_key_t key);
 请简述网络编程中设计并发服务器,使用多进程和多线程请问有什么区别
 
 #+BEGIN_SRC
+多线程服务器创建速度快,占用资源少,但是共享相同内存空间,产生同步问题,一个线程崩溃,会影响其他线程
+多进程进程之间相互独立,单个进程崩溃不影响其他进程稳定性高,占用资源多
 
 #+END_SRC
 
+| 对比          | 多进程       | 多线程               |
+| 数据共享,同步 | 数据共享复杂 | 线程共享数据         |
+| 内存CPU       | 占用资源多   | 内存占用少           |
+| 创建销毁切换  | 复杂         | 简单                 |
+| 编程调试      | 简单         | 复杂                 |
+| 可靠性        | 可靠         | 一个挂掉整个进程挂掉 |
+| 分布式        |              |                      |
 
 *** 7.
 如何创建一个线程?写一段程序说明(要求对相关函数和参数作出说明)
 
 #+BEGIN_SRC
-
+//线程执行函数
+void *func(){
+}
+//线程id
+pid_t pid;
+//线程创建函数
+pthread_create(&pid, NULL, func, NULL)
 #+END_SRC
 
 
@@ -2308,58 +2604,180 @@ int pthread_key_delete(pthread_key_t key);
 请简述在linux系统中阻塞I/O和非阻塞I/O两种模型的异同点
 
 #+BEGIN_SRC
-
+阻塞: 在调用函数之前,函数没有接受或没有得到结果之前不返回
+非阻塞: 在调用函数之前,函数立即返回,通过select通知调用者
+阻塞I/O和非阻塞I/O的区别: 应用程序的调用是否立即返回
+相同点都阻塞在拷贝数据的时候
 #+END_SRC
 
 
 *** 9.
 请简述用TCP套接字建立服务端和客户端的基本步骤,写出每步调用的函数
+#+BEGIN_SRC
+服务端
+1.创建套接字 socket()
+2.设置套接字 sockaddr_in
+3.绑定套接字 bind()
+4.监听套接字 listen()
+5.接受套接字 accept()
+6.处理      read/write/recv/send
+7.关闭套接字 close()
+
+客户端
+1.创建套接字 socket()
+2.设置套接字 sockaddr_in
+3.连接套接字 connect()
+4.处理      read/wirte/recv/send
+5.关闭套接字 close
 
 *** 10.
 UDP套接字程序中调用connect()函数和不调用该函数的区别是?
+#+BEGIN_SRC
+调用了该函数后套接字变成已连接套接字
+再也不能给输出操作指定目的IP端口号
+不能用recvfrom函数接受数据而要用read和recv
+异步错误由已连接的UDP套接字返回给进程
 
+#+END_SRC
 
 *** 11.
 请创建一个访问ICMP的原始套接字,并简述原始套接字可以提供的TCP/UDP套接字一般不提供的功能
 
+#+BEGIN_SRC c
+socket(AF_INET, SOCK_RAW, IPPROTO_ICMP);
+
+原始套接字允许对较低层次的协议如IP,ICMP直接访问,用户可以自定义包头,用于检验新的协议的实现
+#+END_SRC
+
 *** 12.
 请简述用TCP套接字建立多进程并发服务器的基本步骤,并写出每步调用的函数
+#+BEGIN_SRC
+1. 创建套接字 socket()
+2. 设置套接字 sockaddr_in
+3. 绑定套接字 bind()
+4. 监听套接字 listen()
+5. 接受套接字 accept()
+6. 创建子进程 fork()
+7. 父进程关闭已连接套接字,子进程关闭监听套接字 close()
+
+#+END_SRC
 
 *** 13.
 请给出设置套接字SO_RCVBUF选项的作用，并说明该选项时针对那一层协议进行设置，并具体说明在服务器和客户端设置该选项时，至少在调用什么函数之前进行设置及理由。
+#+BEGIN_SRC
+设置 接受缓冲区大小 TCP
+调用bind前进行设置
+bind函数作用,为套接字绑定本地协议端口,建立与本地协议的联系
+#+END_SRC
 
 *** 14.
 非阻塞I/O是linux下可用的I/O模型之一，请以recvfrom函数为例说明该模型下系统I/O的工作模式。
+#+BEGIN_SRC
 
+系统不断调用 recvfrom 检查数据报是否准备好,
+未准备好返回EWOULDBLOCK,
+直到返回成功,
+recvfrom开始拷贝数据,
+阻塞于拷贝数据
+#+END_SRC
 *** 15.
 请简述accept()函数调用成功后，返回的值。
+#+BEGIN_SRC
+可以获得三个值
+一个是accept函数返回值,已连接套接字描述符
+由clinet参数返回客户端协议地址,包括IP地址,端口号
+由addrlen返回客户端地址结构大小
+
+#+END_SRC
 
 *** 16.
 请创建一个访问ICMP的原始套接字，并简述原始套接字可以提供的TCP/UDP套接字一般不提供的功能。
 
+#+BEGIN_SRC c
+socket(AF_INET, SOCK_RAW, IPPROTO_ICMP);
+
+原始套接字允许对较低层次的协议如IP,ICMP直接访问,用户可以自定义包头,用于检验新的协议的实现
+#+END_SRC
 *** 17.
 请简述用TCP套接字建立多线程并发服务器的基本步骤，并写出每步调用的函数。
-
+#+BEGIN_SRC
+1. 创建套接字 socket()
+2. 设置套接字 sockaddr_in
+3. 绑定套接字 bind()
+4. 监听套接字 listen()
+5. 接受套接字 accept()
+6. 创建线程   pthread_create()
+7. 父线程关闭接受套接字, 子线程关闭监听套接字
+8. 关闭套接字  close()
+#+END_SRC
 *** 18.
 简述select()和pselect()函数的区别。
+#+BEGIN_SRC
+第一点    select函数用的timeout参数，是一个timeval的结构体（包含秒和微秒），然而pselect用的是一个timespec结构体（包含秒和纳秒）
+
+第二点    select函数可能会为了指示还剩多长时间而更新timeout参数，然而pselect不会改变timeout参数
+
+第三点    select函数没有sigmask参数，当pselect的sigmask参数为null时，两者行为时一致的。
+有sigmask的时候，pselect相当于如下的select()函数，在进入select()函数之前手动将信号的掩码改变，并保存之前的掩码值；
+select()函数执行之后，再恢复为之前的信号掩码值。
+
+
+sigset_t origmask;
+
+
+sigprocmask(SIG_SETMASK, &sigmask, &origmask);
+
+
+select(nfds, &readfds, &writefds, &exceptfds, timeout);
+
+
+sigprocmask(SIG_SETMASK, &origmask, NULL);
+#+END_SRC
 
 *** 19.
 基于TCP协议的套接字服务器程序中，会产生两种套接字描述符，简述这两种套接字描述符分别是什么？分别由什么函数创建？以及这两种描述符各自的作用。
+#+BEGIN_SRC
+socket()创建的监听描述符,和accept()创建的已连接描述符.
+监听描述符用来监听一个端口,当有一个客户与服务器连接时,它使用这个端口号,而此时这个端口号正于这个套接字关联.
+已连接描述符默认会阻塞进程,直到有一个客户连接后返回,它返回的是一个新可用的套接字,这个套接字是连接套接字
+#+END_SRC
 
 *** 20.
 设置套接字选项时，请指出SO_RCVBUF选项所在的层(网络协议中的那一层)？并 具体说明在服务器和客户端设置该选项时，必须在调用哪一网络编程函数之前进行设置及理由。
+#+BEGIN_SRC
+设置 接受缓冲区大小 TCP
+调用bind前进行设置
+bind函数作用,为套接字绑定本地协议端口,建立与本地协议的联系
+#+END_SRC
 
 *** 21.
 简述基于TCP的多线程并发服务器，服务器程序的编程流程。
 
 *** 22.
 简述5种I/O模型分别是哪5种I/O模型
+#+BEGIN_SRC
+信号驱动I/O
+阻塞I/O
+非阻塞I/O
+I/O复用
+异步I/O
+#+END_SRC
 
 *** 23.
 请简述fork和vfork的区别和联系
-
+#+BEGIN_SRC
+fork 创建的子进程是父进程的副本 (copy on write)
+vfork 创建的子进程是父进程的共享存储空间和地址空间 保证子进程先运行
+相同:都是创建新进程,调用一次返回两次,父进程返回子进程id,子进程返回0
+#+END_SRC
 *** 24.
 在多进程程序设计时，产生新的子进程后，父进程要关闭连接套接字，而子进程要关闭监听套接字，具体原因是什么。
-
+#+BEGIN_SRC
+父进程要继续保持监听,关闭连接套接字是父进程不需要处理请求,只负责建立连接后把连接套接字交给子进程处理
+子进程只负责处理,关闭多余的描述符,防止父子进程对共享描述符进行操作,产生不可预计的后果
+#+END_SRC
 *** 25.
 请简述套接字SO_REUSEADDR选项的作用
+#+BEGIN_SRC
+允许端口复用
+#+END_SRC
