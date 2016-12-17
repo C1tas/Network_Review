@@ -192,6 +192,16 @@ int isfdtype(int fd, int fdtype);
 
 ** TCP
 
+*** 相关函数
+
+#+BEGIN_SRC c
+#include <sys/types.h>
+#include <sys/socket.h>
+
+ssize_t recv(int sockfd, void *buf, size_t len, int flags);
+#+END_SRC
+
+*** 例子程序
 Server:
 #+BEGIN_SRC c
 #include <stdio.h>
@@ -305,6 +315,18 @@ void *function(void *arg){
 #+END_SRC
 
 
+** UDP
+
+*** 相关函数
+
+#+BEGIN_SRC c
+#include <sys/types.h>
+#include <sys/socket.h>
+
+ssize_t recvfrom(int sockfd, void *buf, size_t len, int flags, struct sockaddr *from, size_t *addrlen);
+ssize_t sendto(int sockfd, const void *buf, size_t len, int flags, const struct sockaddr *to, int addrlen);
+#+END_SRC
+
 * 线程基础函数
 
 #+BEGIN_SRC c
@@ -313,7 +335,7 @@ int pthread_create(pthread_t *tid, const pthread_attr_t *attr, void *(func)(void
 //如果新线程创建成功,参数tid返回新生成的线程ID.一个进程中的每个线程都由一个线程ID标识,其类型为pthread_t, attr指向线程属性指针.每个线程有很多属性.通常将attr的参数值设置为NULL,这时使用系统的默认属性.
 //创建完线程后, 需要说明它将执行的函数.函数地址由func制定,该参数必须是个静态函数,它只有一个通用指针作为参数,并返回一个通用指针.该执行函数的调用参数是由arg指定,arg是一个通用指针,用于往func函数中传递参数.如果需要传递多个参数,必须将它们打包成一个结构,然后让arg指向该结构
 
-int pthread_jion(pthread_t tid, void **status);
+int pthread_join(pthread_t tid, void **status);
 //函数与进程的waitpid函数功能类似,等待一个线程终止
 //参数tid指定所等待的线程ID.该函数必须指定要等待的线程,不能等待任一个线程结束.要求等待的线程必须是当前进程的成员,并且不是分离的线程或者守护线程.几个线程不能同时等待一个线程完成,如果其中一个成功调用pthread_jion函数,其他线程将返回ESRCH错误,如果等待的线程已经终止,则该函数立即返回.如果参数status指针非空,则指向终止线程的推出状态值.调用成功返回0
 
@@ -595,13 +617,38 @@ SHUT_WD:关闭连接写的这一半,在TCP场合下,这种情况称为半关闭(
 
 * 非阻塞IO工作模式
 
+阻塞I/O和非阻塞I/O的区别: 应用程序的调用是否理解返回
+
 * 同步io 与异步io
+
+同步io
+- 阻塞I/O
+- 非阻塞I/O
+- I/O复用
+- 信号驱动I/O
+
+异步io
+- 异步I/O
+
+同步I/O和异步I/O的区别在于: 数据访问的时候是否阻塞
+
 
 * 域名解析相关函数
 
 * 获取本地址和远程地址方法
 
+
+** gethostname
+#+BEGIN_SRC c
+gethostname(char *name, size_t namelen)
+#+END_SRC
+返回当前主机的名字,name是指向主机名存储位置的指针,namelen是此数组的大小
+
 ** gethostbyname
+#+BEGIN_SRC c
+#include <netdb.h>
+struct hostent *gethostbyname(const char *hostname)
+#+END_SRC
 该函数如果执行成功就返回一个指向结构hostent的指针,如果失败返回空指针
 #+BEGIN_SRC c
   #include <netdb.h>
@@ -1219,6 +1266,7 @@ pselect函数的返回值有三种情况,返回值为0表示 #超时# ,返回值
 56. [F] SO_SNDLOWAT用来设置套接字发送缓冲区的发送低潮,当发送缓冲区的现有数据量大于发送低潮时,便可以发送数据,select返回可写(小于时触发I/O)
 
 ** 阅读程序回答问题
+
 *** 1.
 #+BEGIN_SRC c -r -n
   int main(void)
@@ -1247,9 +1295,19 @@ pselect函数的返回值有三种情况,返回值为0表示 #超时# ,返回值
 
 (1) 在fork()函数调用成功的情况下,父进程的执行路径是什么?依次写出语句行号
 
+1,2,3,4,5,13,14,15,16,17
+
 (2) 在fork()函数调用成功的情况下,子进程的执行路径是什么?请依次写语句行号
 
+1,2,3,4,5,6,7,8,9,10,11,12
+
 (3) 请写出在调用成功的情况下,屏幕上的输出
+
+dddd..
+eeee..
+aaaa..
+bbbb..
+cccc..
 
 
 *** 2.
@@ -1285,9 +1343,15 @@ pselect函数的返回值有三种情况,返回值为0表示 #超时# ,返回值
 
 (1) 程序中新创建的线程执行那些语句?
 
+pthread(create(&mythread, NULL, thread_function, NULL);
+
 (2) 上述程序希望对myglobal加10,请问是否正确,请说明原因
 
+不正确,答案不确定,若sleep函数稳定完成线程挂起功能,在主线程加一后进入子线程完成对j的增加后切回主线程myglobal增加这样的区别在于j的值始终比myglobal的值多1,基于理想情况在printf语句的时候,子线程已经完成了5次的赋值如果myglobal = j这条语句已经被执行那么就会对输出结果导致偏差
+
 (3) 若上述带注释的sleep(1)语句删除,程序的输出结果是?请解释为什么
+
+答案是5,主线程不存在挂起的时候,一直往下执行所以导致直接输出了主线程中的运算结果5
 
 
 *** 3.
@@ -1320,11 +1384,20 @@ pselect函数的返回值有三种情况,返回值为0表示 #超时# ,返回值
 #+END_SRC
 (1) FD_ZERO(&rfds)函数功能
 
+初始化rfds,将rfds所有标志位置0
+
 (2) FD_SET(0, &rfds) 函数功能
+
+将rfds为0的描述字置1
 
 (3) FD_ISSET(0, &rfds) 函数功能
 
+检测rfds 为0的描述字是否为1
+
 (4) select(1, &rfds, NULL, NULL, &tv) 函数功能
+
+测试这一个描述字rfds,在rfds套接口准备好读,写,异常时延迟5秒返回
+
 
 *** 4.
 #+BEGIN_SRC c
@@ -1334,7 +1407,7 @@ pselect函数的返回值有三种情况,返回值为0表示 #超时# ,返回值
 
   int main(void) {
       pid_t pid;
-      if ((pid = fork) == 0) {
+      if ((pid = fork()) == 0) {
           sleep(1);
           printf("child running.\n", );
           printf("child dead.\n");
@@ -1351,14 +1424,27 @@ pselect函数的返回值有三种情况,返回值为0表示 #超时# ,返回值
       }
   }
 
-
 #+END_SRC
 
 (1) fork函数功能
 
+以copy on write 方式建立子进程,在子进程中返回0 父进程中返回子进程id号
+
 (2) waitpid(pid, NULL, 0)函数功能
 
+获得pid子进程的终止状态
+
 (3) 该程序运行后,其结果为
+
+#+BEGIN_SRC
+
+parent running.
+child running.
+child dead.
+parent exit.
+
+#+END_SRC
+
 
 *** 5.
 #+BEGIN_SRC c
@@ -1384,7 +1470,7 @@ pselect函数的返回值有三种情况,返回值为0表示 #超时# ,返回值
       printf("the main tid is %d.\n", pthread_self());
       pthread_key_create(&key, (void *)echomsg);
       //创建子进程.线程执行函数为childfun,线程id保存到child_tid变量;
-
+      pthread_create(&child_tid, NULL, childfun, NULL);
       //在上面空缺行填写一行代码
       pthread_join(child_tid, NULL);
       pthread_key_delete(key);
@@ -1394,6 +1480,12 @@ pselect函数的返回值有三种情况,返回值为0表示 #超时# ,返回值
 #+END_SRC
 
 假如程序运行后,主线程id为123456,子线程id为234567,请写出程序的运行结果:
+the main tid is 123456.
+thread 234567 enter.the key's 0 .
+thread 234567 key's 234567.
+destructor exected in thread 234567, param = 234567.
+main thread exit.
+
 
 *** 6.
 补全代码
@@ -1410,14 +1502,15 @@ pselect函数的返回值有三种情况,返回值为0表示 #超时# ,返回值
       int retval;
       char temp[100];
       //补全代码
-
+      FD_ZERO(&rfds);
+      FD_SET(0,&rfds);
       //在上空缺处补全两行代码
       tv.tv_sec = 5;
       tv.tv_usec = 0;
       //
-
+      retval = select(1, &rfds, NULL, NULL, &tv);
       //在上空缺处补全一行代码
-      if(){ //括号中补全代码
+      if(FD_ISSET(0, &rfds)){ //括号中补全代码
           fget(temp, 100, stdin);
           printf("Data is avaliable now.\n");
       }
@@ -1429,6 +1522,7 @@ pselect函数的返回值有三种情况,返回值为0表示 #超时# ,返回值
   }
 
 #+END_SRC
+
 
 *** 7.
 补全代码
@@ -1450,11 +1544,11 @@ pselect函数的返回值有三种情况,返回值为0表示 #超时# ,返回值
   int main(void) {
       pthread_t childthread;
       printf("main thread enter.\n");
-      if () { //补全括号内,创建子线程,线程id保存在childthread中,线程函数为thread_function
+      if (pthread_create(&childthread, NULL, thread_function, NULL)) { //补全括号内,创建子线程,线程id保存在childthread中,线程函数为thread_function
           printf("error creating thread.\n");
           exit(1);
       }
-      if () { // 括号内补全代码,等待子线程chrildthread结束,获得释放子线程状态信息
+      if (pthread_join(childthread, NULL)) { // 括号内补全代码,等待子线程chrildthread结束,获得释放子线程状态信息
           printf("error joining thread.\n");
           exit(1);
       }
@@ -1464,6 +1558,7 @@ pselect函数的返回值有三种情况,返回值为0表示 #超时# ,返回值
 #+END_SRC
 
 程序运行正常写出结果
+
 
 *** 8.
 写出下面函数的作用
@@ -1480,9 +1575,16 @@ fcntl(fileno(stdin), F_SETFL, flags);
 
 (1)
 
+获取标准输入的文件描述符
+
 (2)
 
+将flags增加非阻塞模式
+
 (3)
+
+重新设置标准输入的文件描述符为flags 即变为非阻塞模式
+
 
 *** 9.
 下面是UDP服务端程序
@@ -1494,10 +1596,13 @@ fcntl(fileno(stdin), F_SETFL, flags);
   //然后省略了完成套接字创建和绑定
   while(1) {
       //第一行接受客户端数据,保存在msg缓冲区中
-
+      recvfrom(sockfd, msg, MAXDATASIZE, 0, (struct sockaddr *)&client, &(sizeof(client)))
       //第二行,打印客户端端口号
+      printf("You got a massage from client.port is %d.\n", htonl(client.sin_port));
+      //
   }
 #+END_SRC
+
 
 *** 10.
 TCP服务端
@@ -1507,15 +1612,16 @@ TCP服务端
   int sockfd1, sockfd2;
   //省略套接字创建和绑定和监听
   //获得客户端连接请求
-
+  connfd = accept(listenfd, (struct sockaddr*)&cliaddr, &len)
   //
   if(connfd == -1) {
       //省略出错处理
   }
   //打印已连接客户端IP地址
-
+  printf("You got a message from client.IP is %s", inet_ntoa(cliaddr.sin_addr));
   //
 #+END_SRC
+
 
 *** 11.
 #+BEGIN_SRC c
@@ -1527,16 +1633,17 @@ TCP服务端
       //省略套接子创建,创建的套接字保存在sockfd中
       int opt = 1;
       //重用本地地址
-
+      setsockopt(sockfd, SOL_SOCKET, SO_REUESADDR, &opt, sizeof(opt));
       //获得套接字接受缓冲区大小,保存到opt中
-
+      opt = recv(sockfd, recvbuf, MAXDATASIZE, 0)
       //打印输出缓冲区大小
-
+      print("The size of buf is %d", opt);
       //
       fflush(stdout);
       close(listenfd);
   }
 #+END_SRC
+
 
 *** 12.
 原始套接字
@@ -1547,14 +1654,15 @@ TCP服务端
       int on;
       on = 1;
       //构造IPv4,UDP的原始套接字保存在sockfd
-
+      sockfd = socket(AF_INET, SOCK_RAW, 0);
       //设置套接字IP_HDRINCL选项,由用户填写网络协议层头部
-
+      setsockopt(sockfd, IPPROTO_IP, IP_HDRINCL, &on, sizeof(on));
       //
       close(sockfd);
       return 0;
   }
 #+END_SRC
+
 
 *** 13.
 UDP客户端
@@ -1575,11 +1683,14 @@ UDP客户端
           exit(1);
       }
       //省略创建UDP套接字,创建套接字保存在fd
+
       bzero(&server, sizeof(server));
-      server.sin_family =  ;//补全
-      server.sin_port = ;//
-      server.sin_addr = ;//
+      server.sin_family =  AF_INET;//补全
+      server.sin_port = htons(PORT);//
+      server.sin_addr = htonl(INADDR_ANY);//
       //一行代码,完成客户端向服务端发送数据
+      sendto(fd, argv[2], strlen(argv[2]), 0, (struct sockaddr *)&server, sizeof(server))
+      //
       close(fd);
       return 0;
   }
@@ -1587,11 +1698,15 @@ UDP客户端
 
 简述gethostbyname 函数功能,并指出当参数为点分十进制字符串时如何操作
 
+该函数如果执行成功就返回一个指向结构hostent的指针,如果失败返回空指针
+
+如果是点分十进制的值,函数不会执行查询操作,返回结构体中h_name是该参数的拷贝,h_addr_list[0]就是该参数对应的整形网络字节序(相当与inet_pton(AF_INET*, name, dst))
+
 *** 14.
 #+BEGIN_SRC c
   //省略头文件
   int main(void) {
-      pid_t result;
+      pid_t result = fork();
       if(result == -1) {
           perror("fork");
           exit;
@@ -1610,9 +1725,21 @@ UDP客户端
 #+END_SRC
 
 (1) 假如程序不出错执行,请写出程序的执行结果
-
+parent.
+child.
 
 (2) 简述TCP的多进程并发服务器,服务器的编程流程
+
+1. 创建套接字
+2. 设置套接字
+3. bind套接字
+4. listen套接字
+5. accpet套接字
+6. fork()
+7. 父进程关闭已连接套接字,子进程关闭监听套接字
+8. 子进程处理,父进程继续监听
+9. 子进程完成后退出
+
 
 
 *** 15.
@@ -1650,7 +1777,7 @@ UDP客户端
       pthread_t child_tid1, child_tid2;
       printf("the main tid is %d\n", pthread_self());
       //创建TSD关键字,key指向创建的关键字,echomsg为析构函数
-
+      pthread_key_create(&key, (void *)echomsg);
       //
       pthread_create(&child_tid1, NULL, childfun1, NULL);
       pthread_join(child_tid1, NULL);
@@ -1664,7 +1791,29 @@ UDP客户端
 
 (1)运行结果是
 
+#+BEGIN_SRC c
+the main tid is 12345678
+enter printf function.
+thread 87654321 enter.
+the key's 0
+thread2 87654321 key's 87654321
+destructor excuted in thread 87654321, param = 87654321.
+#+END_SRC
+
+程序实例运行结果:
+#+BEGIN_SRC c
+the main tid is -1875171584
+enter printf function.
+thread -1883236608 enter.
+the key's 0.
+thread2 -1883236608 key's -1883236608.
+destructor excuted in thread -1883236608, param = -1883236608.
+#+END_SRC
+
+
 (2)解释pthread_create(&child_tid1, NULL, childfun1, NULL);完成的功能并解释各个函数的意思
+
+创建一个子线程,将子线程tid返回到child_tid1,并使用系统默认属性, 执行childfun1,不传入参数
 
 *** 16.
 
@@ -1676,7 +1825,7 @@ UDP客户端
       int num, flags;
       flags = fcntl(0, F_GETFL, 0);
       // 加入非阻塞标志
-
+      flags |= O_NONBLOCK;
       //
       if(fcntl(0, F_SETFL, flags) == 1) {
           perror("fcntl");
@@ -1697,11 +1846,19 @@ UDP客户端
 
 (1) 解释程序中flags = fcntl(0, F_GETFL, 0);语句完成的功能
 
+获得0号描述符的文件描述符的标志,并赋值给flags
+
 (2) 根据程序上下文, 完成空缺
 
 (3) 解释程序fcntl(0, F_SETFL, flags);语句玩完成的功能
 
+将新的文件描述符标志flags设置给0号描述符
+
 (4) 判断该I/O模型是同步I/O还是异步I/O
+
+同步I/O
+
+
 
 *** 17.
 解释下列语句完成的功能
@@ -1713,6 +1870,7 @@ UDP客户端
 
 (3) ioctl(sockfd, FIOASYNC, &on); //已知on为整形 且on = 1
 
+
 *** 18.
 谈话程序
 
@@ -1721,11 +1879,11 @@ UDP客户端
 
   for(;;) {
       //重置句柄集
-
+      FD_ZERO(&infds);
       //把标准输入置入句柄集
-
-      //吧socket置入句柄集
-
+      FD_SET(fileno(stdin), &infds);
+      //把socket置入句柄集
+      FD_SET(sockfd, &infds);
       //
       maxfd = max(fileno(stdin), sockfd) + 1;
       if (select(maxfd, &infds, NULL, NULL, NULL) == -1){
@@ -1740,6 +1898,7 @@ UDP客户端
   }
 #+END_SRC
 
+
 *** 19.
 
 非阻塞I/O的实现可以通过fcntl()来改变句柄(或描述符)的标志来实现
@@ -1748,13 +1907,14 @@ UDP客户端
 #+BEGIN_SRC c
   int flags;
   // 读句柄当前标志
-
+  flags = fcntl(sockfd, F_GETFL, 0);
   // 加入非阻塞标志
-
+  flags |= O_NONBLOCK;
   // 设置带有非阻塞的新标志
-
+  fcntl(sockfd, F_SETFL, flags);
   //
 #+END_SRC
+
 
 *** 20.
 gethostname 函数,该函数返回的是当前主机的名字,根据下面的程序进行填空
@@ -1767,11 +1927,12 @@ gethostname 函数,该函数返回的是当前主机的名字,根据下面的程
       size_t namelen;
       namelen = sizeof(buf);
       // 调用 gethostname函数
-
+      gethostname(buf, namelen)
       //
-      printf("host name is %s.\n", /*参数*/ ); // 补全输出 主机的名字
+      printf("host name is %s.\n", buf/*参数*/ ); // 补全输出 主机的名字
   }
 #+END_SRC
+
 
 *** 21.
 信号驱动I/O的实现,要通过信号驱动方式对多个句柄进行复用,要通过如下几个步骤
@@ -1807,6 +1968,7 @@ int main (){
 
 运行结果：
 
+
 *** 22.
 #+BEGIN_SRC c
 int main (void){
@@ -1832,7 +1994,13 @@ int main (void){
 #+END_SRC
 运行结果是:
 
-
+#+BEGIN_SRC
+parent running.
+parent exit.
+child running.
+child sleeping
+child dead.
+#+END_SRC
 
 *** 23.
 #+BEGIN_SRC c
@@ -1862,6 +2030,14 @@ int main (void){
 #+END_SRC
 
 运行结果：
+
+#+BEGIN_SRC
+parent running.
+parent exit.
+child running.
+child sleeping
+child dead.
+#+END_SRC
 
 *** 24.
 
@@ -1897,10 +2073,19 @@ int main (void){
 }
 #+END_SRC
 
-
 运行结果：
+#+BEGIN_SRC
+hello
+thread 1 enter
+once_run in thread 1
+thread 1 returns
+thread 2 enter
+thread 2 returns
+main thread exit
+#+END_SRC
 
-*** 24.
+
+*** 25.
 #+BEGIN_SRC c
 #include <pthread.h>
 #include <stdlib.h>
@@ -1949,11 +2134,16 @@ int main (void){
 
 #+END_SRC
 运行结果：
+#+BEGIN_SRC
+反正是6个F6个.
+myglobal equals 12
+#+END_SRC
 
-*** 25.
+
+*** 26.
 #+BEGIN_SRC c
 
-main (int argc, const char **argv){
+int main (int argc, const char **argv){
     ulong_t addr;
     struct hostent *hp;
     char **p;
@@ -1980,8 +2170,12 @@ main (int argc, const char **argv){
             exit(0);
         }
     }
+    return 0;
 }
 #+END_SRC
 
 
 执行 ./b 127.0.0.1 命令后，运行结果如下：
+#+BEGIN_SRC
+127.0.0.1     localhost
+#+END_SRC
