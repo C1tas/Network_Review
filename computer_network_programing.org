@@ -1265,6 +1265,7 @@ pselect函数的返回值有三种情况,返回值为0表示 #超时# ,返回值
 
 56. [F] SO_SNDLOWAT用来设置套接字发送缓冲区的发送低潮,当发送缓冲区的现有数据量大于发送低潮时,便可以发送数据,select返回可写(小于时触发I/O)
 
+
 ** 阅读程序回答问题
 
 *** 1.
@@ -1294,20 +1295,23 @@ pselect函数的返回值有三种情况,返回值为0表示 #超时# ,返回值
 #+END_SRC
 
 (1) 在fork()函数调用成功的情况下,父进程的执行路径是什么?依次写出语句行号
-
+#+BEGIN_SRC
 1,2,3,4,5,13,14,15,16,17
+#+END_SRC
 
 (2) 在fork()函数调用成功的情况下,子进程的执行路径是什么?请依次写语句行号
-
+#+BEGIN_SRC
 1,2,3,4,5,6,7,8,9,10,11,12
+#+END_SRC
 
 (3) 请写出在调用成功的情况下,屏幕上的输出
-
+#+BEGIN_SRC
 dddd..
 eeee..
 aaaa..
 bbbb..
 cccc..
+#+END_SRC
 
 
 *** 2.
@@ -1343,15 +1347,21 @@ cccc..
 
 (1) 程序中新创建的线程执行那些语句?
 
+#+BEGIN_SRC
 pthread(create(&mythread, NULL, thread_function, NULL);
+#+END_SRC
 
 (2) 上述程序希望对myglobal加10,请问是否正确,请说明原因
 
+#+BEGIN_SRC
 不正确,答案不确定,若sleep函数稳定完成线程挂起功能,在主线程加一后进入子线程完成对j的增加后切回主线程myglobal增加这样的区别在于j的值始终比myglobal的值多1,基于理想情况在printf语句的时候,子线程已经完成了5次的赋值如果myglobal = j这条语句已经被执行那么就会对输出结果导致偏差
+#+END_SRC
 
 (3) 若上述带注释的sleep(1)语句删除,程序的输出结果是?请解释为什么
 
+#+BEGIN_SRC
 答案是5,主线程不存在挂起的时候,一直往下执行所以导致直接输出了主线程中的运算结果5
+#+END_SRC
 
 
 *** 3.
@@ -1384,19 +1394,25 @@ pthread(create(&mythread, NULL, thread_function, NULL);
 #+END_SRC
 (1) FD_ZERO(&rfds)函数功能
 
+#+BEGIN_SRC
 初始化rfds,将rfds所有标志位置0
-
+#+END_SRC
 (2) FD_SET(0, &rfds) 函数功能
 
+#+BEGIN_SRC
 将rfds为0的描述字置1
-
+#+END_SRC
 (3) FD_ISSET(0, &rfds) 函数功能
 
+#+BEGIN_SRC
 检测rfds 为0的描述字是否为1
+#+END_SRC
 
 (4) select(1, &rfds, NULL, NULL, &tv) 函数功能
 
+#+BEGIN_SRC
 测试这一个描述字rfds,在rfds套接口准备好读,写,异常时延迟5秒返回
+#+END_SRC
 
 
 *** 4.
@@ -1427,12 +1443,15 @@ pthread(create(&mythread, NULL, thread_function, NULL);
 #+END_SRC
 
 (1) fork函数功能
-
+#+BEGIN_SRC
 以copy on write 方式建立子进程,在子进程中返回0 父进程中返回子进程id号
+#+END_SRC
 
 (2) waitpid(pid, NULL, 0)函数功能
 
+#+BEGIN_SRC
 获得pid子进程的终止状态
+#+END_SRC
 
 (3) 该程序运行后,其结果为
 
@@ -1480,11 +1499,13 @@ parent exit.
 #+END_SRC
 
 假如程序运行后,主线程id为123456,子线程id为234567,请写出程序的运行结果:
+#+BEGIN_SRC
 the main tid is 123456.
 thread 234567 enter.the key's 0 .
 thread 234567 key's 234567.
 destructor exected in thread 234567, param = 234567.
 main thread exit.
+#+END_SRC
 
 
 *** 6.
@@ -1528,36 +1549,41 @@ main thread exit.
 补全代码
 
 #+BEGIN_SRC c
-  #include <pthread.h>
-  #include <stdlib.h>
-  #include <unistd.h>
+#include <pthread.h>
+#include <stdlib.h>
+#include <unistd.h>
 
-  void *thread_function(void *arg) {
-      int i;
-      for (i = 0; i < 2; i++) {
-          printf("Thread says hi!.\n");
-          sleep(1);
-      }
-      return NULL;
-  }
+void *thread_function(void *arg) {
+    int i;
+    for (i = 0; i < 2; i++) {
+        printf("Thread says hi!.\n");
+        sleep(1);
+    }
+    return NULL;
+}
 
-  int main(void) {
-      pthread_t childthread;
-      printf("main thread enter.\n");
-      if (pthread_create(&childthread, NULL, thread_function, NULL)) { //补全括号内,创建子线程,线程id保存在childthread中,线程函数为thread_function
-          printf("error creating thread.\n");
-          exit(1);
-      }
-      if (pthread_join(childthread, NULL)) { // 括号内补全代码,等待子线程chrildthread结束,获得释放子线程状态信息
-          printf("error joining thread.\n");
-          exit(1);
-      }
-      printf("main thread exit.\n");
-      exit(0);
-  }
+int main(void) {
+    pthread_t childthread;
+    printf("main thread enter.\n");
+    if (pthread_create(&childthread, NULL, thread_function, NULL)) { //补全括号内,创建子线程,线程id保存在childthread中,线程函数为thread_function
+        printf("error creating thread.\n");
+        exit(1);
+    }
+    if (pthread_join(childthread, NULL)) { // 括号内补全代码,等待子线程chrildthread结束,获得释放子线程状态信息
+        printf("error joining thread.\n");
+        exit(1);
+    }
+    printf("main thread exit.\n");
+    exit(0);
+}
 #+END_SRC
 
 程序运行正常写出结果
+#+BEGIN_SRC
+main thread enter.
+Thread says hi.
+Thread says hi.
+#+END_SRC
 
 
 *** 8.
@@ -1574,16 +1600,19 @@ fcntl(fileno(stdin), F_SETFL, flags);
 #+END_SRC
 
 (1)
-
+#+BEGIN_SRC
 获取标准输入的文件描述符
+#+END_SRC
 
 (2)
-
+#+BEGIN_SRC
 将flags增加非阻塞模式
+#+END_SRC
 
 (3)
-
+#+BEGIN_SRC
 重新设置标准输入的文件描述符为flags 即变为非阻塞模式
+#+END_SRC
 
 
 *** 9.
@@ -1697,10 +1726,12 @@ UDP客户端
 #+END_SRC
 
 简述gethostbyname 函数功能,并指出当参数为点分十进制字符串时如何操作
-
+#+BEGIN_SRC
 该函数如果执行成功就返回一个指向结构hostent的指针,如果失败返回空指针
 
 如果是点分十进制的值,函数不会执行查询操作,返回结构体中h_name是该参数的拷贝,h_addr_list[0]就是该参数对应的整形网络字节序(相当与inet_pton(AF_INET*, name, dst))
+#+END_SRC
+
 
 *** 14.
 #+BEGIN_SRC c
@@ -1725,11 +1756,13 @@ UDP客户端
 #+END_SRC
 
 (1) 假如程序不出错执行,请写出程序的执行结果
+#+BEGIN_SRC
 parent.
 child.
+#+END_SRC
 
 (2) 简述TCP的多进程并发服务器,服务器的编程流程
-
+#+BEGIN_SRC
 1. 创建套接字
 2. 设置套接字
 3. bind套接字
@@ -1739,6 +1772,7 @@ child.
 7. 父进程关闭已连接套接字,子进程关闭监听套接字
 8. 子进程处理,父进程继续监听
 9. 子进程完成后退出
+#+END_SRC
 
 
 
@@ -1812,8 +1846,10 @@ destructor excuted in thread -1883236608, param = -1883236608.
 
 
 (2)解释pthread_create(&child_tid1, NULL, childfun1, NULL);完成的功能并解释各个函数的意思
-
+#+BEGIN_SRC
 创建一个子线程,将子线程tid返回到child_tid1,并使用系统默认属性, 执行childfun1,不传入参数
+#+END_SRC
+
 
 *** 16.
 
@@ -1845,22 +1881,25 @@ destructor excuted in thread -1883236608, param = -1883236608.
 #+END_SRC
 
 (1) 解释程序中flags = fcntl(0, F_GETFL, 0);语句完成的功能
-
+#+BEGIN_SRC
 获得0号描述符的文件描述符的标志,并赋值给flags
+#+END_SRC
 
 (2) 根据程序上下文, 完成空缺
 
 (3) 解释程序fcntl(0, F_SETFL, flags);语句玩完成的功能
-
+#+BEGIN_SRC
 将新的文件描述符标志flags设置给0号描述符
+#+END_SRC
 
 (4) 判断该I/O模型是同步I/O还是异步I/O
-
+#+BEGIN_SRC
 同步I/O
+#+END_SRC
 
 
 
-*** 17.
+*** TODO 17.
 解释下列语句完成的功能
 
 (1) signal(SIGIO, ioaction)
@@ -1934,7 +1973,7 @@ gethostname 函数,该函数返回的是当前主机的名字,根据下面的程
 #+END_SRC
 
 
-*** 21.
+*** TODO 21.
 信号驱动I/O的实现,要通过信号驱动方式对多个句柄进行复用,要通过如下几个步骤
 
 - 将这些描述
@@ -2002,6 +2041,7 @@ child sleeping
 child dead.
 #+END_SRC
 
+
 *** 23.
 #+BEGIN_SRC c
 #include <sys/types.h>
@@ -2038,6 +2078,7 @@ child running.
 child sleeping
 child dead.
 #+END_SRC
+
 
 *** 24.
 
