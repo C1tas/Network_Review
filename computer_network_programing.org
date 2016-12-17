@@ -1777,3 +1777,211 @@ gethostname 函数,该函数返回的是当前主机的名字,根据下面的程
 信号驱动I/O的实现,要通过信号驱动方式对多个句柄进行复用,要通过如下几个步骤
 
 - 将这些描述
+
+
+信号驱动I/O的实现，要通过信号驱动方式对多个句柄进行复用，要通过如下几个步骤：
+将这些句柄（描述符）的属主都设为一个进程。将这些句柄（描述符）的标志位O_ASYNC打开，让句柄（描述符）发生I/O时间时发送SIGIO信号。
+在属主进程中设置对SIGIO信号的处理。当有I/O时间在任何一个句柄（描述符）上发生时，系统都会向进程发送SIGIO信号。
+进程在对SIGIO的中断处理中再查询各个句柄（描述符）状态，进行相应的处理。
+根据以上描述完成下面的程序填空。
+
+#+BEGIN_SRC c
+void ioaction(int signo) /*定义信号处理程序*/
+{...}
+int main (){
+    stdinfd = fileno(stdin);
+    //指定信号处理程序
+
+    //句柄（描述符）所有者为i当前进程
+
+    //
+    int on  = 1;
+    iocatl(sockfd, FIOASYNC, &on); /*sockfd 发生I/O事件时发送SIGIO信号*/
+    for (;;){
+        n = read(stdinfd, msg, BUFLEN);/*可能阻塞*/
+    }
+}
+
+#+END_SRC
+
+
+运行结果：
+
+*** 22.
+#+BEGIN_SRC c
+int main (void){
+    pid_t pid;
+    int status;
+    if((pid = fork()) == 0){
+        sleep(2);
+        printf("child running.\n");
+        printf("child sleeping.\n");
+        sleep(5);
+        printf("child Dead.\n");
+        exit(0);
+    }else if (pid > 0){
+        printf("parent running.\n");
+        printf("parent exit\n");
+        exit(0);
+    }else {
+        printf("fork error.\n");
+        exit(1);
+    }
+}
+
+#+END_SRC
+运行结果是:
+
+
+
+*** 23.
+#+BEGIN_SRC c
+#include <sys/types.h>
+#include <unistd.h>
+
+int main (void){
+    pid_t pid;
+    int status;
+    if ((pid = vfork()) == 0){
+        sleep(2);
+        printf("child running.\n");
+        printf("child sleeping.\n");
+        sleep(5);
+        printf("child dead.\n");
+        exit(0);
+    }else if (pid > 0){
+        printf("parent running.\n");
+        printf("parent exit.\n");
+        exit(0);
+    }else {
+        printf("fork error.\n");
+        exit(0);
+    }
+}
+
+#+END_SRC
+
+运行结果：
+
+*** 24.
+
+#+BEGIN_SRC c
+#include <pthread.h>
+#include <stdio.h>
+
+pthread_once_t once = PTHREAD_ONCE_INIT;
+void once_run (void){
+    printf("once_run in thread %d \n", pthread_self());
+}
+void *child (void *arg){
+    int tid = pthread_self();
+    printf("thread %d enter\n", tid);
+    pthread_once (&once, once_run);
+    printf("thread %d returns\n", tid);
+}
+void *child2 (void *arg){
+    int tid = pthread_self();
+    printf("thread %d enter\n", tid);
+    pthread_once (&once, once_run);
+    printf("thread %d returns\n", tid);
+}
+
+int main (void){
+    int tid1, tid2;
+    printf("hello\n");
+    pthread_create(&tid1, NULL, child1, NULL);
+    pthread_create(&tid2, NULL, child2, NULL);
+    sleep(10);
+    printf("main thread exit\n");
+    return 0;
+}
+#+END_SRC
+
+
+运行结果：
+
+*** 24.
+#+BEGIN_SRC c
+#include <pthread.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <stdio.h>
+
+int myglobal;
+pthread_mutex_t mymutex = PTHREAD_MUTEX_INITIALIZER;
+void *thread_function(void *arg){
+    int i, j;
+    for (i = 0; i < 6; i++){
+        pthread_mutex_lock(&mymutex);
+        j = myglobal;
+        j += 1;
+        printf(".");
+        fflush(stdout);
+        sleep(1);
+        myglobal = j;
+        pthread_mutex_unlock(&mymutex);
+    }
+    return NULL;
+}
+
+int main (void){
+    pthread_t mythread;
+    int i;
+    if (pthread_create(&mythread, NULL, thread_function, NULL)){
+        printf("error creating thread.");
+        abort();
+    }
+    for (i = 0; i < 6; i++){
+        pthread_mutex_lock(&mymutex);
+        myglobal += 1;
+        pthread_mutex_unlock(&mymutex);
+        printf("F");
+        fflush(stdout);
+        sleep(1);
+    }
+    if (pthread_join (mythread, NULL)){
+        printf("error joining thread.");
+        abort();
+    }
+    print("\n myglobal equals %d\n", myglobal);
+    exit(0);
+}
+
+#+END_SRC
+运行结果：
+
+*** 25.
+#+BEGIN_SRC c
+
+main (int argc, const char **argv){
+    ulong_t addr;
+    struct hostent *hp;
+    char **p;
+    if (argc != 2){
+        print("usage: %s IP-address\n", argv[0]);
+        exit(1);
+    }
+    if((addr = inet_addr(argv[1])) == -1){
+        printf("IP-address must be of the form a.b.c.d\n");
+        exit(1);
+    }
+    hp = gethostbyaddr((char *)&addr, sizeof(addr), AF_INET);
+    if (hp == NULL){
+        printf("host information for %s not found\n", argv[1]);
+        exit(1);
+    }
+    for (p = hp->h_addr_list; *p !-= 0; p++){
+        struct in_addr in;
+        char **q;
+        memcpy(&in.s_addr, *p, sizeof(sizeof(in.s_addr));
+        printf("%s\t%s",inet_ntoa(in), hp -> h_name);
+        for (q = hp->h_aliases; *q != 0; q++){
+            printf("%s", *q);
+            exit(0);
+        }
+    }
+}
+#+END_SRC
+
+
+执行 ./b 127.0.0.1 命令后，运行结果如下：
