@@ -1,7 +1,9 @@
 * 网络通信三要素
-IP地址
-端口号
-传输协议
+- IP地址
+
+- 端口号
+
+- 传输协议
 
 * tcp与ip首部格式
 [[Network_Programing/IP_Header.jpg]]
@@ -182,11 +184,126 @@ int isfdtype(int fd, int fdtype);
 
     僵死状态：一个已经终止、但是其父进程尚未对其进行善后处理(获取终止子进程的有关信息，释放它仍占有的资源)的进程被称为僵死进程(zombie)。ps命令将僵死进程的状态打印为Z 。
 * 僵尸进程
-　　孤儿进程：一个父进程退出，而它的一个或多个子进程还在运行，那么那些子进程将成为孤儿进程。孤儿进程将被init进程(进程号为1)所收养，并由init进程对它们完成状态收集工作。
+孤儿进程：一个父进程退出，而它的一个或多个子进程还在运行，那么那些子进程将成为孤儿进程。孤儿进程将被init进程(进程号为1)所收养，并由init进程对它们完成状态收集工作。
 
-　　僵尸进程：一个进程使用fork创建子进程，如果子进程退出，而父进程并没有调用wait或waitpid获取子进程的状态信息，那么子进程的进程描述符仍然保存在系统中。这种进程称之为僵死进程。
+僵尸进程：一个进程使用fork创建子进程，如果子进程退出，而父进程并没有调用wait或waitpid获取子进程的状态信息，那么子进程的进程描述符仍然保存在系统中。这种进程称之为僵死进程。
 
 * 多线程(tcp和udp) 并发服务器编程模板以及例程
+
+** TCP
+
+Server:
+#+BEGIN_SRC c
+#include <stdio.h>
+#include <stdlib.h>
+#include <strings.h>
+#include <string.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <pthread.h>
+
+#define PORT 1234
+#define BACKLOG 5
+#define MAXDATASIZE 1000
+
+void process_cli(int connfd, struct sockaddr_in client);
+void *function(void *arg);
+struct ARG {
+    int connfd;
+    struct sockaddr_in client;
+};
+
+void main ()
+{
+    int listenfd, connfd;
+    pthread_t tid;
+    struct ARG *arg;
+    struct sockaddr_in server;
+    struct sockaddr_in client;
+    socklen_t len;
+    if((listenfd = socket(AF_INET, SOCK_STREAM, 0)) == -1){
+        perror("Creating socket failed.\n");
+        exit(1);
+    }
+
+    int opt = SO_REUSEADDR;
+    setsockopt(listenfd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+    bzero(&server, sizeof(server));
+    server.sin_family = AF_INET;
+    server.sin_port = htons(PORT);
+    server.sin_addr.s_addr = htonl(INADDR_ANY);
+    if(bind(listenfd, (struct sockaddr *)&server, sizeof(server)) == -1){
+        perror("Bind() error.\n");
+        exit(1);
+    }
+    if(listen(listenfd, BACKLOG) == -1){
+        perror("listen() error.\n");
+    }
+    len = sizeof(client);
+    while(1){
+        if((connfd = accept(listenfd, (struct sockaddr *)&client, &len)) == -1){
+            perror("accept() error.\n");
+            exit(1);
+        }
+        arg = (struct ARG*)malloc(sizeof(struct ARG));
+        arg->connfd = connfd;
+        memcpy((void *)&arg->client, &client, sizeof(client));
+        if(pthread_create(&tid, NULL, function, (void*)arg)){
+            perror("pthread_create error.\n");
+            exit(1);
+        }
+
+    }
+    close(listenfd);
+}
+
+void process_cli(int connfd, struct sockaddr_in client){
+    int num;
+    char recvbuf[MAXDATASIZE], sendbuf[MAXDATASIZE], cli_name[MAXDATASIZE];
+    printf("You got a connection from %s.\n", inet_ntoa(client.sin_addr));
+    num = recv(connfd, cli_name, MAXDATASIZE, 0);
+    if(num == 0){
+        close(connfd);
+        printf("Client disconnected.\n");
+        return;
+    }
+    cli_name[num - 1] = '\0';
+    printf("Client's name is %s.\n", cli_name);
+    while(num = recv(connfd, recvbuf, MAXDATASIZE, 0)){
+        recvbuf[num] = '\0';
+
+        printf("Received client(%s) message: %s\n", cli_name, recvbuf);
+        int i;
+        for(i = 0; i < num -1; i++){
+            // if((recvbuf[i] >= 'a' && recvbuf[i] <='z')||(recvbuf[i] >= 'A'&& recvbuf[i] <= 'Z')){
+            //     recvbuf[i] = recvbuf[i] + 3;
+            //     if((recvbuf[i] >'Z' && recvbuf[i] <= 'Z'+3) || (recvbuf[i] > 'z')){
+            //         recvbuf[i] = recvbuf[i] - 26;
+                // }
+            // }
+            sendbuf[i] = recvbuf[i];
+        }
+        sendbuf[num - 1] = '\0';
+        send(connfd, sendbuf, strlen(sendbuf), 0);
+
+    }
+    close(connfd);
+}
+
+void *function(void *arg){
+    struct ARG *info;
+    info = (struct ARG*)arg;
+    process_cli(info->connfd, info->client);
+    free(arg);
+    pthread_exit(NULL);
+}
+
+
+#+END_SRC
+
 
 * 线程基础函数
 
@@ -222,6 +339,155 @@ void pthread_exit(void *status);
 * 多线程中传参数的几种方法有何差异
 
 * 线程安全性TSD编程例程
+
+Server:
+
+#+BEGIN_SRC c
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <strings.h>
+#include <string.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <pthread.h>
+
+#define PORT 1234
+#define BACKLOG 5
+#define MAXDATASIZE 1000
+
+void process_cli(int connfd, struct sockaddr_in client);
+void savedata_r(char* recvbuf, int len, char* cli_data);
+void *function(void *arg);
+struct ARG {
+    int connfd;
+    struct sockaddr_in client;
+};
+
+pthread_key_t key;
+pthread_once_t once = PTHREAD_ONCE_INIT;
+
+static void destructor(void *ptr){
+    free(ptr);
+}
+
+static void createkey_once(void){
+    pthread_key_create(&key, destructor);
+}
+
+struct ST_DATA{
+    int index;
+};
+
+
+void main ()
+{
+    int listenfd, connfd;
+    pthread_t tid;
+    struct ARG *arg;
+    struct sockaddr_in server;
+    struct sockaddr_in client;
+    socklen_t len;
+    if((listenfd = socket(AF_INET, SOCK_STREAM, 0)) == -1){
+        perror("Creating socket failed.\n");
+        exit(1);
+    }
+
+    int opt = SO_REUSEADDR;
+    setsockopt(listenfd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+    bzero(&server, sizeof(server));
+    server.sin_family = AF_INET;
+    server.sin_port = htons(PORT);
+    server.sin_addr.s_addr = htonl(INADDR_ANY);
+    if(bind(listenfd, (struct sockaddr *)&server, sizeof(server)) == -1){
+        perror("Bind() error.\n");
+        exit(1);
+    }
+    if(listen(listenfd, BACKLOG) == -1){
+        perror("listen() error.\n");
+    }
+    len = sizeof(client);
+    while(1){
+        if((connfd = accept(listenfd, (struct sockaddr *)&client, &len)) == -1){
+            perror("accept() error.\n");
+            exit(1);
+        }
+        arg = (struct ARG*)malloc(sizeof(struct ARG));
+        arg->connfd = connfd;
+        memcpy((void *)&arg->client, &client, sizeof(client));
+        if(pthread_create(&tid, NULL, function, (void*)arg)){
+            perror("pthread_create error.\n");
+            exit(1);
+        }
+
+    }
+    close(listenfd);
+}
+
+void process_cli(int connfd, struct sockaddr_in client){
+    int num;
+    char cli_data[MAXDATASIZE];
+    char recvbuf[MAXDATASIZE], sendbuf[MAXDATASIZE], cli_name[MAXDATASIZE];
+    char tbuf[MAXDATASIZE];
+    printf("You got a connection from %s.\n", inet_ntoa(client.sin_addr));
+    num = recv(connfd, cli_name, MAXDATASIZE, 0);
+    if(num == 0){
+        close(connfd);
+        printf("Client disconnected.\n");
+        return;
+    }
+
+    cli_name[num - 1] = '\0';
+    printf("Client's name is %s.\n", cli_name);
+    while(num = recv(connfd, recvbuf, MAXDATASIZE, 0)){
+        //recvbuf[num - 1] = '\0';
+
+        printf("Received client(%s) message: %s\n", cli_name, recvbuf);
+        savedata_r(recvbuf, num, cli_data);
+        int i = 0;
+        tbuf[num] = '\0';
+        for(i = 0; i < num; i++)
+        {
+            tbuf[num-i-1] = recvbuf[i];
+        }
+        //printf("\nnum:%d\n", num);
+        //printf("\ntbuf:%s\n", tbuf);
+
+        send(connfd, tbuf, strlen(tbuf), 0);
+
+    }
+    close(connfd);
+    printf("Client(%s) closed connfd connection.\n User's data:%s.\n", cli_name, cli_data);
+}
+
+void *function(void *arg){
+    struct ARG *info;
+    info = (struct ARG*)arg;
+    process_cli(info->connfd, info->client);
+    free(arg);
+    pthread_exit(NULL);
+}
+
+void savedata_r(char* recvbuf, int len, char* cli_data){
+    struct ST_DATA* data;
+    pthread_once(&once, createkey_once);
+    if((data = (struct ST_DATA*)pthread_getspecific(key)) == NULL){
+        data = (struct ST_DATA*)malloc(sizeof(struct ST_DATA));
+        pthread_setspecific(key, data);
+        data->index = 0;
+    }
+    int i = 0;
+    while (i < len - 1){
+        cli_data[data->index++] = recvbuf[i];
+        i++;
+    }
+    cli_data[data->index] = '\0';
+    printf("%s.\n", cli_data);
+}
+#+END_SRC
 
 * I/O复用技术和相关函数
 - 阻塞I/O
@@ -353,40 +619,60 @@ SHUT_WD:关闭连接写的这一半,在TCP场合下,这种情况称为半关闭(
 
 * 原始套接字作用以及创建方式
 基于原始套接字编程
-       在开发面向连接的TCP和面向无连接的UDP程序时，我们所关心的核心问题在于数据收发层面，数据的传输特性由TCP或UDP来保证：
+
+在开发面向连接的TCP和面向无连接的UDP程序时，我们所关心的核心问题在于数据收发层面，数据的传输特性由TCP或UDP来保证：
+
 [SOCK_RAW/raw_1.jpg]
+
 也就是说，对于TCP或UDP的程序开发，焦点在Data字段，我们没法直接对TCP或UDP头部字段进行赤裸裸的修改，当然还有IP头。换句话说，我们对它们头部操作的空间非常受限，只能使用它们已经开放给我们的诸如源、目的IP，源、目的端口等等。
+
 今天我们讨论一下原始套接字的程序开发，用它作为入门协议栈的进阶跳板太合适不过了。OK闲话不多说，进入正题。
+
 原始套接字的创建方法也不难：socket(AF_INET, SOCK_RAW, protocol)。
+
 重点在protocol字段，这里就不能简单的将其值为0了。在头文件netinet/in.h中定义了系统中该字段目前能取的值，注意：有些系统中不一定实现了netinet/in.h中的所有协议。源代码的linux/in.h中和netinet/in.h中的内容一样。
 
 [SOCK_RAW/raw_2.jpg]
 
- 我们常见的有IPPROTO_TCP，IPPROTO_UDP和IPPROTO_ICMP，在博文“(十六)洞悉linux下的Netfilter&iptables：开发自己的hook函数【实战】(下) ”中我们见到该protocol字段为IPPROTO_RAW时的情形，后面我们会详细介绍。
-       用这种方式我就可以得到原始的IP包了，然后就可以自定义IP所承载的具体协议类型，如TCP，UDP或ICMP，并手动对每种承载在IP协议之上的报文进行填充。接下来我们看个最著名的例子DOS攻击的示例代码，以便大家更好的理解如何基于原始套接字手动去封装我们所需要TCP报文。
-       先简单复习一下TCP报文的格式，因为我们本身不是讲协议的设计思想，所以只会提及和我们接下来主题相关的字段，如果想对TCP协议原理进行深入了解那么《TCP/IP详解卷1》无疑是最好的选择。
+我们常见的有IPPROTO_TCP，IPPROTO_UDP和IPPROTO_ICMP，在博文“(十六)洞悉linux下的Netfilter&iptables：开发自己的hook函数【实战】(下) ”中我们见到该protocol字段为IPPROTO_RAW时的情形，后面我们会详细介绍。
+
+用这种方式我就可以得到原始的IP包了，然后就可以自定义IP所承载的具体协议类型，如TCP，UDP或ICMP，并手动对每种承载在IP协议之上的报文进行填充。接下来我们看个最著名的例子DOS攻击的示例代码，以便大家更好的理解如何基于原始套接字手动去封装我们所需要TCP报文。
+
+先简单复习一下TCP报文的格式，因为我们本身不是讲协议的设计思想，所以只会提及和我们接下来主题相关的字段，如果想对TCP协议原理进行深入了解那么《TCP/IP详解卷1》无疑是最好的选择。
 
 [SOCK_RAW/raw_3.jpg]
 
 我们目前主要关注上面着色部分的字段就OK了，接下来再看看TCP3次握手的过程。TCP的3次握手的一般流程是：
+
 (1) 第一次握手：建立连接时，客户端A发送SYN包(SEQ_NUMBER=j)到服务器B，并进入SYN_SEND状态，等待服务器B确认。
+
 (2) 第二次握手：服务器B收到SYN包，必须确认客户A的SYN(ACK_NUMBER=j+1)，同时自己也发送一个SYN包(SEQ_NUMBER=k)，即SYN+ACK包，此时服务器B进入SYN_RECV状态。
+
 (3) 第三次握手：客户端A收到服务器B的SYN＋ACK包，向服务器B发送确认包ACK(ACK_NUMBER=k+1)，此包发送完毕，客户端A和服务器B进入ESTABLISHED状态，完成三次握手。
- 至此3次握手结束，TCP通路就建立起来了，然后客户端与服务器开始交互数据。上面描述过程中，SYN包表示TCP数据包的标志位syn=1，同理，ACK表示TCP报文中标志位ack=1，SYN+ACK表示标志位syn=1和ack=1同时成立。
+
+至此3次握手结束，TCP通路就建立起来了，然后客户端与服务器开始交互数据。上面描述过程中，SYN包表示TCP数据包的标志位syn=1，同理，ACK表示TCP报文中标志位ack=1，SYN+ACK表示标志位syn=1和ack=1同时成立。
+
 原始套接字还提供了一个非常有用的参数IP_HDRINCL：
+
 1、当开启该参数时：我们可以从IP报文首部第一个字节开始依次构造整个IP报文的所有选项，但是IP报文头部中的标识字段(设置为0时)和IP首部校验和字段总是由内核自己维护的，不需要我们关心。
+
 2、如果不开启该参数：我们所构造的报文是从IP首部之后的第一个字节开始，IP首部由内核自己维护，首部中的协议字段被设置成调用socket()函数时我们所传递给它的第三个参数。
+
  开启IP_HDRINCL特性的模板代码一般为：
-       const int on =1;
+#+BEGIN_SRC c
+  const int on =1;
   if (setsockopt (sockfd, IPPROTO_IP, IP_HDRINCL, &on, sizeof(on)) < 0){
-printf("setsockopt error!\n");
+      printf("setsockopt error!\n");
   }
-      所以，我们还得复习一下IP报文的首部格式：
+#+END_SRC
+所以，我们还得复习一下IP报文的首部格式：
 
 [SOCK_RAW/raw_4.jpg]
 
 同样，我们重点关注IP首部中的着色部分区段的填充情况。
+
 有了上面的知识做铺垫，接下来DOS示例代码的编写就相当简单了。我们来体验一下手动构造原生态IP报文的乐趣吧
+
 #+BEGIN_SRC c
 //mdos.c
 #include <stdlib.h>
@@ -587,8 +873,11 @@ ip->saddr = random();
 * GCC编译器使用
 
 1.预处理,生成.i的文件[预处理器cpp]
+
 2.将预处理后的文件不转换成汇编语言,生成文件.s[编译器egcs]
+
 3.有汇编变为目标代码(机器代码)生成.o的文件[汇编器as]
+
 4.连接目标代码,生成可执行程序[链接器ld]
 
 gcc
@@ -619,17 +908,20 @@ ssembler-with-cpp'.
 　　例子用法:
 　　gcc -c hello.c
 　　他将生成.o的obj文件
+
 -S
 　　只激活预处理和编译，就是指把文件编译成为汇编代码。
 　　例子用法
 　　gcc -S hello.c
 　　他将生成.s的汇编代码，你可以用文本编辑器察看
+
 -E
 　　只激活预处理,这个不生成文件,你需要把它重定向到一个输出文件里面.
 　　例子用法:
 　　gcc -E hello.c > pianoapan.txt
 　　gcc -E hello.c | more
 　　慢慢看吧,一个hello word 也要与处理成800行的代码
+
 -o
 　　制定目标名称,缺省的时候,gcc 编译出来的文件是a.out,很难听,如果你和我有同感
 ，改掉它,哈哈
@@ -824,8 +1116,7 @@ pselect函数的返回值有三种情况,返回值为0表示 #超时# ,返回值
 
 5. [T] 当一个客户SYN到达时,若未完成连接队列和已完成连接队列都是满的,TCP就忽略此分节,且不发送RST
 
-6. [F] 调用close()函数将立即关闭发送与接收这两个方向的TCP连接而不管将关闭的套接字的引用情况
-# 只是将计数减一不会引发TCP终止操作
+6. [F] 调用close()函数将立即关闭发送与接收这两个方向的TCP连接而不管将关闭的套接字的引用情况 (只是将计数减一不会引发TCP终止操作)
 
 7. [F] 在TCP客户服务器通信中,若服务器端崩溃,则可以通过重启服务器让正在进行通信继续
 
@@ -833,8 +1124,7 @@ pselect函数的返回值有三种情况,返回值为0表示 #超时# ,返回值
 
 9. [T] 互斥锁是一种专用于进程间数据同步的计数
 
-10. [T] 当子进程正常或异常终止时,系统内核会向其父进程发送SIGCHLD信号
-# 正常,结束,中断,或恢复执行内核都会发送 SIGCHLD
+10. [T] 当子进程正常或异常终止时,系统内核会向其父进程发送SIGCHLD信号(正常,结束,中断,或恢复执行内核都会发送 SIGCHLD)
 
 11. [T] 可以使用原始套接口编程伪造IP数据包实现DoS攻击
 
@@ -848,23 +1138,19 @@ pselect函数的返回值有三种情况,返回值为0表示 #超时# ,返回值
 
 16. [T] 基于TCP协议的服务器端程序,可以通过accept()函数获得与之通信的客户端的IP地址和端口号
 
-17. [F] 基于UDP协议的服务端和客户端程序,在接收和发送数据时,必须使用sendto()和recvform()函数
-# read write
+17. [F] 基于UDP协议的服务端和客户端程序,在接收和发送数据时,必须使用sendto()和recvform()函数(read write)
 
 18. [T] fork()函数和vfork()函数都可以创建子进程,所以基于这两个函数都可以实现多进程并发服务器
 
-19. [F] 线程可以调用exit()函数退出,而且对统一进程的其它线程不会造成影响
-# exit结束整个程序
+19. [F] 线程可以调用exit()函数退出,而且对统一进程的其它线程不会造成影响(exit结束整个程序)
 
-20. [F] pthread_join()可以等待任意线程的退出
-# 不能等待任一线程结束
+20. [F] pthread_join()可以等待任意线程的退出(不能等待任一线程结束)
 
 21. [T] 标识线程专用数据的关键字key是进程唯一的.
 
 22. [T] 使用I/O复用技术可以实现并发服务器
 
-23. [F] 对SO_KEEPALIVE选项中时间参数的修改,会影响到主机中打开该选项的所有套接字
-# 只针对相应的
+23. [F] 对SO_KEEPALIVE选项中时间参数的修改,会影响到主机中打开该选项的所有套接字(只针对相应的)
 
 24. [F] gethostbyname(const char *hostname)函数不允许将IP地址作为函数的参数
 
@@ -880,8 +1166,7 @@ pselect函数的返回值有三种情况,返回值为0表示 #超时# ,返回值
 
 30. [F] 由确定通信的五元组(本地协议,本地IP,本地端口,远程协议,远程IP,远程端口)可知,该(本地TCP,本地IP,本地端口,远程UDP,远程IP,远程端口)六元组所标识网络中一个连接可以进行正常的网络通信
 
-31. [F] 套接口是计算机操作系统为TCP/UDP协议与IP协议之间进行数据交互提供的接口,又称套接字
-# 套接口与套接字是两个东西
+31. [F] 套接口是计算机操作系统为TCP/UDP协议与IP协议之间进行数据交互提供的接口,又称套接字(套接口与套接字是两个东西)
 
 32. [T] 在IPv4套接字地址结构中,成员sin_port是用来存储主机字节顺序端口号
 
@@ -891,8 +1176,7 @@ pselect函数的返回值有三种情况,返回值为0表示 #超时# ,返回值
 
 35. [F] wait()函数可以处理同时退出的多个线程在进行
 
-36. [F] 一个线程的崩溃不会影响同一进程中的其他线程
-# 线程没有自己的地址空间,非法地址读写崩溃,整个进程也是错误的
+36. [F] 一个线程的崩溃不会影响同一进程中的其他线程(线程没有自己的地址空间,非法地址读写崩溃,整个进程也是错误的)
 
 37. [T] 在多线程并发服务器中,主线程生成子线程后,在主线程中要关闭已连接描述符,在子线程中要关闭监听描述字
 
@@ -914,20 +1198,17 @@ pselect函数的返回值有三种情况,返回值为0表示 #超时# ,返回值
 
 46. [F] 套接口是计算机操作系统为TCP/UDP协议与IP协议之间进行数据交互提供的接口,又称套接字
 
-47. [F] 在TCP的客户端程序中,如果connect()函数调用失败,则还可以继续使用该套接字
-# 套接字不能再使用必须关闭
+47. [F] 在TCP的客户端程序中,如果connect()函数调用失败,则还可以继续使用该套接字(套接字不能再使用必须关闭)
 
 48. [T] 在IPv4套接字地址结构中,in_addr结构体中的s_addr成员,存储的便是我们主机字节序的32位IPv4地址
 
 49. [F] vfork()函数创建子进程后,父进程和子进程谁先执行,这取决于内核所使用的调度算法,有可能父进程先于子进程执行,也有可能子进程先于父进程执行
 
-50. [F] 在UDP套接字程序中,客户端与服务端通信时,必须使用sendto()和recvfrom()函数
-write read
+50. [F] 在UDP套接字程序中,客户端与服务端通信时,必须使用sendto()和recvfrom()函数(write read)
 
 51. [T] waitpid()函数可以处理同时退出的多个线程在进行
 
-52. [F] 对于非阻塞I/O模型,进程从调用recvfrom函数,将数据从内核拷贝到用户空间整个过程都不会阻塞进程的执行
-# 在数据拷贝的时候阻塞
+52. [F] 对于非阻塞I/O模型,进程从调用recvfrom函数,将数据从内核拷贝到用户空间整个过程都不会阻塞进程的执行(在数据拷贝的时候阻塞)
 
 53. [T] 在多线程并发服务器中,为防止父子线程对描述符的操作造成混乱,在主线程创建子线程后,应在父线程中关闭已连接描述符
 
@@ -935,5 +1216,564 @@ write read
 
 55. [T] 在TCP的客户端程序中,为了接受更多的数据,可以在接收数据调用打开read函数时,临时更改套接字接受缓冲区的大小
 
-56. [F] SO_SNDLOWAT用来设置套接字发送缓冲区的发送低潮,当发送缓冲区的现有数据量大于发送低潮时,便可以发送数据,select返回可写
-小于时触发I/O
+56. [F] SO_SNDLOWAT用来设置套接字发送缓冲区的发送低潮,当发送缓冲区的现有数据量大于发送低潮时,便可以发送数据,select返回可写(小于时触发I/O)
+
+** 阅读程序回答问题
+*** 1.
+#+BEGIN_SRC c -r -n
+  int main(void)
+  {
+      pid_t pid;
+      int status;
+      if((pid = fork()) == 0)
+      {
+          sleep(2);
+          printf("aaaaaaaaaa.\n");
+          printf("bbbbbbbbbb.\n");
+          sleep(2);
+          printf("cccccccccc.\n");
+          exit(0);
+      }else if( pid > 0)
+      {
+          printf("dddddddddd.\n");
+          printf("eeeeeeeeee.\n");
+          exit(0);
+      } else {
+          printf("fork error.\n");
+          exit(1);
+      }
+  }
+#+END_SRC
+
+(1) 在fork()函数调用成功的情况下,父进程的执行路径是什么?依次写出语句行号
+
+(2) 在fork()函数调用成功的情况下,子进程的执行路径是什么?请依次写语句行号
+
+(3) 请写出在调用成功的情况下,屏幕上的输出
+
+
+*** 2.
+#+BEGIN_SRC c
+  //头文件略
+  int myglobal = 0;
+  void * thread_function(void * arg) {
+      int i,j;
+      for (i = 0; i < 5; i++) {
+          j = myglobal;
+          j = j+1;
+          sleep(1);
+          myglobal = j;
+      }
+      return NULL;
+  }
+
+  int main(void) {
+      pthread_t mythread;
+      int i;
+      if (pthread_create(&mythread, NULL, thread_function, NULL)){
+          printf("error.\n");
+          exit(1);
+      }
+      for (i = 0; i < 5; i++) {
+          myglobal = myglobal + 1;
+          sleep(1); //见问题3
+      }
+      printf("myglobal = %d.\n", myglobal);
+      return 0;
+  }
+#+END_SRC
+
+(1) 程序中新创建的线程执行那些语句?
+
+(2) 上述程序希望对myglobal加10,请问是否正确,请说明原因
+
+(3) 若上述带注释的sleep(1)语句删除,程序的输出结果是?请解释为什么
+
+
+*** 3.
+#+BEGIN_SRC c
+  #include <stdint.h>
+  #include <sys/time.h>
+  #include <sys/types.h>
+  #include <unistd.h>
+
+  int main(void){
+      fd_set rfds;
+      struct timeval tv;
+      int retval;
+      char temp[100];
+      FD_ZERO(&rfds);
+      FD_SET(0, &rfds);
+      tv.tv_sec = 5;
+      tv.tv_usec = 0;
+      retval = select(1, &rfds, NULL, NULL, &tv);
+      if(FD_ISSET(0, &rfds)) {
+          fget(temp, 100, stdin);
+          printf("Data is available now.\n");
+      }
+      else {
+          printf("No data arrive.\n");
+          exit(0);
+      }
+  }
+
+#+END_SRC
+(1) FD_ZERO(&rfds)函数功能
+
+(2) FD_SET(0, &rfds) 函数功能
+
+(3) FD_ISSET(0, &rfds) 函数功能
+
+(4) select(1, &rfds, NULL, NULL, &tv) 函数功能
+
+*** 4.
+#+BEGIN_SRC c
+  #include <unistd.h>
+  #include <sys/types.h>
+  #include <sys/wait.h>
+
+  int main(void) {
+      pid_t pid;
+      if ((pid = fork) == 0) {
+          sleep(1);
+          printf("child running.\n", );
+          printf("child dead.\n");
+          exit(0);
+      }
+      else if (pid > 0) {
+          printf("parent running.\n");
+          waitpid(pid, NULL, 0);
+          printf("parent exit.\n");
+      }
+      else {
+          printf("fork error.\n");
+          exit(0);
+      }
+  }
+
+
+#+END_SRC
+
+(1) fork函数功能
+
+(2) waitpid(pid, NULL, 0)函数功能
+
+(3) 该程序运行后,其结果为
+
+*** 5.
+#+BEGIN_SRC c
+  #include <stdio.h>
+  #include <pthread.h>
+  pthread_key_t key;
+  void echomsg(int t) {
+      printf("destructor exected in thread %d, param = %d.\n", pthread_self(), t);
+  }
+
+  void *childfun(void *arg) {
+      int tid = pthread_self();
+      printf("thread %d enter.\n", tid);
+      printf("the key's %d .\n", pthread_getspecific(key));
+      pthread_setspecific(key, (void *)tid);
+      sleep(2);
+      printf("thread %d key's %d.\n", tid, pthread_getspecific(key));
+      sleep(5);
+  }
+
+  int main(void) {
+      pthread_t child_tid;
+      printf("the main tid is %d.\n", pthread_self());
+      pthread_key_create(&key, (void *)echomsg);
+      //创建子进程.线程执行函数为childfun,线程id保存到child_tid变量;
+
+      //在上面空缺行填写一行代码
+      pthread_join(child_tid, NULL);
+      pthread_key_delete(key);
+      printf("main thread exit.\n");
+      return 0;
+  }
+#+END_SRC
+
+假如程序运行后,主线程id为123456,子线程id为234567,请写出程序的运行结果:
+
+*** 6.
+补全代码
+
+#+BEGIN_SRC c
+  #include <stdio.h>
+  #include <sys/time.h>
+  #include <sys/types.h>
+  #include <unistd.h>
+
+  int main(void) {
+      fd_set rfds;
+      struct timeval tv;
+      int retval;
+      char temp[100];
+      //补全代码
+
+      //在上空缺处补全两行代码
+      tv.tv_sec = 5;
+      tv.tv_usec = 0;
+      //
+
+      //在上空缺处补全一行代码
+      if(){ //括号中补全代码
+          fget(temp, 100, stdin);
+          printf("Data is avaliable now.\n");
+      }
+      else {
+          printf("No data arrive.\n");
+          exit(0);
+      }
+
+  }
+
+#+END_SRC
+
+*** 7.
+补全代码
+
+#+BEGIN_SRC c
+  #include <pthread.h>
+  #include <stdlib.h>
+  #include <unistd.h>
+
+  void *thread_function(void *arg) {
+      int i;
+      for (i = 0; i < 2; i++) {
+          printf("Thread says hi!.\n");
+          sleep(1);
+      }
+      return NULL;
+  }
+
+  int main(void) {
+      pthread_t childthread;
+      printf("main thread enter.\n");
+      if () { //补全括号内,创建子线程,线程id保存在childthread中,线程函数为thread_function
+          printf("error creating thread.\n");
+          exit(1);
+      }
+      if () { // 括号内补全代码,等待子线程chrildthread结束,获得释放子线程状态信息
+          printf("error joining thread.\n");
+          exit(1);
+      }
+      printf("main thread exit.\n");
+      exit(0);
+  }
+#+END_SRC
+
+程序运行正常写出结果
+
+*** 8.
+写出下面函数的作用
+#+BEGIN_SRC c
+int flag
+//(1)
+flags = fcntl(fileno(stdin), F_GETFL, 0);
+
+//(2)
+flags |= O_NONBLOCK;
+//(3)
+fcntl(fileno(stdin), F_SETFL, flags);
+#+END_SRC
+
+(1)
+
+(2)
+
+(3)
+
+*** 9.
+下面是UDP服务端程序
+#+BEGIN_SRC c
+  int sockfd;
+  struct sockaddr_in server, client;
+  int sin_size, num;
+  char msg[MAXDATASIZE];
+  //然后省略了完成套接字创建和绑定
+  while(1) {
+      //第一行接受客户端数据,保存在msg缓冲区中
+
+      //第二行,打印客户端端口号
+  }
+#+END_SRC
+
+*** 10.
+TCP服务端
+#+BEGIN_SRC c
+  struct sockaddr_in servaddr, cliaddr;
+  socklen_t len;
+  int sockfd1, sockfd2;
+  //省略套接字创建和绑定和监听
+  //获得客户端连接请求
+
+  //
+  if(connfd == -1) {
+      //省略出错处理
+  }
+  //打印已连接客户端IP地址
+
+  //
+#+END_SRC
+
+*** 11.
+#+BEGIN_SRC c
+  #include <sys/socket.h>
+  #include <stdio.h>
+
+  int main(void) {
+      int sockfd;
+      //省略套接子创建,创建的套接字保存在sockfd中
+      int opt = 1;
+      //重用本地地址
+
+      //获得套接字接受缓冲区大小,保存到opt中
+
+      //打印输出缓冲区大小
+
+      //
+      fflush(stdout);
+      close(listenfd);
+  }
+#+END_SRC
+
+*** 12.
+原始套接字
+#+BEGIN_SRC c
+  //省略头文件
+  int main(int argc, char **argv) {
+      int sockfd;
+      int on;
+      on = 1;
+      //构造IPv4,UDP的原始套接字保存在sockfd
+
+      //设置套接字IP_HDRINCL选项,由用户填写网络协议层头部
+
+      //
+      close(sockfd);
+      return 0;
+  }
+#+END_SRC
+
+*** 13.
+UDP客户端
+#+BEGIN_SRC c
+  //省略头文件
+  #define PORT 1234
+  int main(int arg, char *argv[]) {
+      int fd, numbytes;
+      char buf[MAXDATASIZE];
+      struct hostent *he;
+      struct sockaddr_in server, reply;
+      if (argc != 3) {
+          printf("Usage: %s <IP address> <Message>\n", argv[0]);
+          exit(1);
+      }
+      if (he = gethostbyname(argv[1]) == NULL) {
+          perror("gethostbyname error.\n");
+          exit(1);
+      }
+      //省略创建UDP套接字,创建套接字保存在fd
+      bzero(&server, sizeof(server));
+      server.sin_family =  ;//补全
+      server.sin_port = ;//
+      server.sin_addr = ;//
+      //一行代码,完成客户端向服务端发送数据
+      close(fd);
+      return 0;
+  }
+#+END_SRC
+
+简述gethostbyname 函数功能,并指出当参数为点分十进制字符串时如何操作
+
+*** 14.
+#+BEGIN_SRC c
+  //省略头文件
+  int main(void) {
+      pid_t result;
+      if(result == -1) {
+          perror("fork");
+          exit;
+      }
+      else if(result == 0) {
+          sleep(3);
+          printf("child.\n");
+          exit(0);
+      }
+      else {
+          wait(result);
+          printf("parent.\n");
+          exit;
+      }
+  }
+#+END_SRC
+
+(1) 假如程序不出错执行,请写出程序的执行结果
+
+
+(2) 简述TCP的多进程并发服务器,服务器的编程流程
+
+
+*** 15.
+假如,主线程id号是12345678,子线程child_tid1的线程id号是987654321,子线程child_tid2的线程id是87654321
+#+BEGIN_SRC c
+  #include <stdio.h>
+  #include <pthread.h>
+
+  pthread_key_t key;
+  pthread_once_t once = PTHREAD_ONCE_INIT;
+  static void printfun(void) {
+      printf("enter printf function.\n");
+  }
+
+  void echomsg(int t) {
+      printf("destructor excuted in thread %d, param = %d.\n", pthread_self(), t);
+  }
+
+  void *childfun1(void *arg){
+      pthread_once(&once, printfun);
+  }
+
+  void *childfun2(void *arg) {
+      pthread_once(&once, printfun);
+      int tid = pthread_self();
+      printf("thread %d enter.\n", tid);
+      printf("the key's %d.\n", pthread_getspecific(key));
+      pthread_setspecific(key, (void *)tid);
+      sleep(2);
+      printf("thread2 %d key's %d.\n", tid, pthread_getspecific(key));
+      sleep(5);
+  }
+
+  int main(void) {
+      pthread_t child_tid1, child_tid2;
+      printf("the main tid is %d\n", pthread_self());
+      //创建TSD关键字,key指向创建的关键字,echomsg为析构函数
+
+      //
+      pthread_create(&child_tid1, NULL, childfun1, NULL);
+      pthread_join(child_tid1, NULL);
+      pthread_create(&child_tid2, NULL, childfun2, NULL);
+      sleep(10);
+      pthread_join(child_tid2, NULL);
+      pthread_key_delete(key);
+      return 0;
+  }
+#+END_SRC
+
+(1)运行结果是
+
+(2)解释pthread_create(&child_tid1, NULL, childfun1, NULL);完成的功能并解释各个函数的意思
+
+*** 16.
+
+#+BEGIN_SRC c
+  //省略头
+  int main(void)
+  {
+      char buf[20];
+      int num, flags;
+      flags = fcntl(0, F_GETFL, 0);
+      // 加入非阻塞标志
+
+      //
+      if(fcntl(0, F_SETFL, flags) == 1) {
+          perror("fcntl");
+          exit(1);
+      }
+      while(1) {
+          num = read(0, buf, 20);
+          if(errno == EWOULDBLOCK){
+              perror("read:");
+              write(1, "try again.\n", strlen("try again.\n"));
+          }
+          write(1, buf, num);
+      }
+      return 0;
+  }
+
+#+END_SRC
+
+(1) 解释程序中flags = fcntl(0, F_GETFL, 0);语句完成的功能
+
+(2) 根据程序上下文, 完成空缺
+
+(3) 解释程序fcntl(0, F_SETFL, flags);语句玩完成的功能
+
+(4) 判断该I/O模型是同步I/O还是异步I/O
+
+*** 17.
+解释下列语句完成的功能
+
+(1) signal(SIGIO, ioaction)
+
+
+(2) fcntl(sockfd, F_SETOWN, getpid()));
+
+(3) ioctl(sockfd, FIOASYNC, &on); //已知on为整形 且on = 1
+
+*** 18.
+谈话程序
+
+#+BEGIN_SRC c
+  fd_set infds;
+
+  for(;;) {
+      //重置句柄集
+
+      //把标准输入置入句柄集
+
+      //吧socket置入句柄集
+
+      //
+      maxfd = max(fileno(stdin), sockfd) + 1;
+      if (select(maxfd, &infds, NULL, NULL, NULL) == -1){
+          //错误处理
+      }
+      if (FD_ISSET(sockfd, &infds)){ // 测试socket是否可读
+          //读socket
+      }
+      if (FD_ISSET(fileno(stdin), &infds)) { //测试标准输入是否可读
+          //读标准输入
+      }
+  }
+#+END_SRC
+
+*** 19.
+
+非阻塞I/O的实现可以通过fcntl()来改变句柄(或描述符)的标志来实现
+将句柄sockfd 设置为非阻塞的代码是
+
+#+BEGIN_SRC c
+  int flags;
+  // 读句柄当前标志
+
+  // 加入非阻塞标志
+
+  // 设置带有非阻塞的新标志
+
+  //
+#+END_SRC
+
+*** 20.
+gethostname 函数,该函数返回的是当前主机的名字,根据下面的程序进行填空
+
+#+BEGIN_SRC c
+  #include <unistd.h>
+
+  int main(){
+      char buf[100];
+      size_t namelen;
+      namelen = sizeof(buf);
+      // 调用 gethostname函数
+
+      //
+      printf("host name is %s.\n", /*参数*/ ); // 补全输出 主机的名字
+  }
+#+END_SRC
+
+*** 21.
+信号驱动I/O的实现,要通过信号驱动方式对多个句柄进行复用,要通过如下几个步骤
+
+- 将这些描述
