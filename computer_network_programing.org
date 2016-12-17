@@ -5,6 +5,7 @@
 
 - 传输协议
 
+
 * tcp与ip首部格式
 [[Network_Programing/IP_Header.jpg]]
 
@@ -84,6 +85,7 @@
 
 7-1.用户数据……
 
+
 * linux套接字类型
 - Socket
   - INET:  IPv4
@@ -96,6 +98,7 @@
     - 原始套接字.允许对低于传输层的协议或物理网络直接访问,例如可以接受和发送ICMP报.常用于检测新的协议
 
 - TLI
+
 
 * 套接字基础函数
 
@@ -159,13 +162,16 @@ int isfdtype(int fd, int fdtype);
 
 #+END_SRC
 
+
 * 网络字节序和主机字节序转换函数
 见上
+
 
 * 并发技术
 - 进程
 - 线程
 - I/O多路复用
+
 
 * 父进程先于子进程结束和晚于子进程结束差异
 一个现有进程可以调用fork函数创建一个新进程。由fork创建的新进程被称为子进程（child process）。fork函数被调用一次但返回两次。两次返回的唯一区别是子进程中返回0值而父进程中返回子进程ID。
@@ -183,10 +189,12 @@ int isfdtype(int fd, int fdtype);
        b）父进程又没有调用wait函数 （非父子进程则未调用waitpid函数），此种情况子进程进入僵死状态即僵尸进程，并且会一直保持下去直到系统重启。子进程处于僵死状态时，内核只保存进程的一些必要信息以备父进程所需。此时子进程始终占有着资源，同时也减少了系统可以创建的最大进程数。
 
     僵死状态：一个已经终止、但是其父进程尚未对其进行善后处理(获取终止子进程的有关信息，释放它仍占有的资源)的进程被称为僵死进程(zombie)。ps命令将僵死进程的状态打印为Z 。
+
 * 僵尸进程
 孤儿进程：一个父进程退出，而它的一个或多个子进程还在运行，那么那些子进程将成为孤儿进程。孤儿进程将被init进程(进程号为1)所收养，并由init进程对它们完成状态收集工作。
 
 僵尸进程：一个进程使用fork创建子进程，如果子进程退出，而父进程并没有调用wait或waitpid获取子进程的状态信息，那么子进程的进程描述符仍然保存在系统中。这种进程称之为僵死进程。
+
 
 * 多线程(tcp和udp) 并发服务器编程模板以及例程
 
@@ -327,6 +335,7 @@ ssize_t recvfrom(int sockfd, void *buf, size_t len, int flags, struct sockaddr *
 ssize_t sendto(int sockfd, const void *buf, size_t len, int flags, const struct sockaddr *to, int addrlen);
 #+END_SRC
 
+
 * 线程基础函数
 
 #+BEGIN_SRC c
@@ -349,16 +358,20 @@ void pthread_exit(void *status);
 //函数用于终止当前线程,并返回状态值,如果当前线程是可联合的,则其推出状态将保留
 #+END_SRC
 
+
 * 分离线程
 
 线程分为两类:可联合的和分离的,默认情况下线程都是可联合的.
 可联合的线程终止时,其线程ID和终止状态将保留,直到线程调用pthread_jion函数.
 而分离线程退出后,系统将释放其所有资源,其他线程不能等待其终止.如果一个线程需要知道另一个线程什么时候终止,最好保留第二个线程的可联合性.
 
+
 * 互斥锁作用
 在编程中，引入了对象互斥锁的概念，来保证共享数据操作的完整性。每个对象都对应于一个可称为" 互斥锁" 的标记，这个标记用来保证在任一时刻，只能有一个线程访问该对象。
 
+
 * 多线程中传参数的几种方法有何差异
+
 
 * 线程安全性TSD编程例程
 
@@ -511,6 +524,7 @@ void savedata_r(char* recvbuf, int len, char* cli_data){
 }
 #+END_SRC
 
+
 * I/O复用技术和相关函数
 - 阻塞I/O
 - 非阻塞I/O
@@ -615,9 +629,11 @@ SHUT_WD:关闭连接写的这一半,在TCP场合下,这种情况称为半关闭(
 
 #+END_SRC
 
+
 * 非阻塞IO工作模式
 
 阻塞I/O和非阻塞I/O的区别: 应用程序的调用是否理解返回
+
 
 * 同步io 与异步io
 
@@ -634,6 +650,7 @@ SHUT_WD:关闭连接写的这一半,在TCP场合下,这种情况称为半关闭(
 
 
 * 域名解析相关函数
+
 
 * 获取本地址和远程地址方法
 
@@ -916,6 +933,7 @@ ip->saddr = random();
 1、IP_HDRINCL选项可以使我们控制到底是要从IP头部第一个字节开始构造我们的原始报文或者从IP头部之后第一个数据字节开始。
 2、只有超级用户才能创建原始套接字。
 3、原始套接字上也可以调用connet、bind之类的函数，但都不常见。原因请大家回顾一下这两个函数的作用。想不起来的童鞋回头复习一下前两篇的内容吧。
+
 
 * GCC编译器使用
 
@@ -2220,3 +2238,91 @@ int main (int argc, const char **argv){
 #+BEGIN_SRC
 127.0.0.1     localhost
 #+END_SRC
+
+** 问答题
+
+*** 1.
+请说明给新线程传递参数方法有那些?这些方法的优缺点是什么?
+
+#+BEGIN_SRC
+
+#+END_SRC
+
+*** 2.
+
+请分别说明下列线程专用数据(TSD, thread specific data)相关函数的作用是什么?
+
+#+BEGIN_SRC c
+int pthread_key_create(pthread_key_t *key, void(* destructor)(void *value));
+int pthread_setspecific(pthread_key_t key, const void *value);
+void *pthread_getspecific(pthread_key_t key);
+int pthread_key_delete(pthread_key_t key);
+#+END_SRC
+
+答案:
+
+#+BEGIN_SRC
+
+#+END_SRC
+
+*** 3.
+请比较信号驱动I/O模式与非阻塞I/O模式.并说明如何在程序中将套接口设置为非阻塞I/O模式
+
+#+BEGIN_SRC
+
+#+END_SRC
+
+
+*** 4.
+请写出select()函数实现I/O多路复用的步骤
+
+#+BEGIN_SRC
+
+#+END_SRC
+
+
+*** 5.
+请简述TCP和UDP协议的网络通信调用bind()和connect()函数的作用分别是什么
+#+BEGIN_SRC
+
+#+END_SRC
+
+
+*** 6.
+请简述网络编程中设计并发服务器,使用多进程和多线程请问有什么区别
+
+#+BEGIN_SRC
+
+#+END_SRC
+
+
+*** 7.
+如何创建一个线程?写一段程序说明(要求对相关函数和参数作出说明)
+
+#+BEGIN_SRC
+
+#+END_SRC
+
+
+*** 8.
+请简述在linux系统中阻塞I/O和非阻塞I/O两种模型的异同点
+
+#+BEGIN_SRC
+
+#+END_SRC
+
+
+*** 9.
+请简述用TCP套接字建立服务端和客户端的基本步骤,写出每步调用的函数
+
+*** 10.
+UDP套接字程序中调用connect()函数和不调用该函数的区别是?
+
+
+*** 11.
+请创建一个访问ICMP的原始套接字,并简述原始套接字可以提供的TCP/UDP套接字一般不提供的功能
+
+*** 12.
+请简述用TCP套接字建立多进程并发服务器的基本步骤,并写出每步调用的函数
+
+*** 13.
