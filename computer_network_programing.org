@@ -2909,3 +2909,98 @@ vfork 创建的子进程是父进程的共享存储空间和地址空间 保证�
 #+BEGIN_SRC
 允许端口复用
 #+END_SRC
+
+
+
+** 编程题
+
+*** 1.
+设计一个基于TCP的服务器程序,端口号8596,使用任意一个IP地址,只为IP为222.18.158.23的客户端服务其他IP连接后直接断开
+
+服务器功能:
+- 循环接收指定IP地址客户端的连接,连接成功后打印客户端的端口号
+- 接受客户端数据,并打印出来
+- 将收到的客户端数据前面加上"message received"然后发送回客户端
+
+#+BEGIN_SRC c
+#include <stdio.h>
+#include <stdlib.h>
+#include <sys/socket.h>
+#include <sys/types.h>
+#include <unistd.h>
+#include <netinet/in.h>
+#include <netdb.h>
+#include <string.h>
+#include <arpa/inet.h>
+
+
+#define PORT 1234
+#define BACKLOG 5
+#define MAXDATASIZE 1000
+
+int main(void) {
+    int listenfd, connfd;
+    struct sockaddr_in server,client,w_client;
+    socklen_t addrlen;
+    char buf[MAXDATASIZE];
+    int num;
+
+    if((listenfd = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
+        perror("socket() error.\n");
+        exit(1);
+    }
+
+    int opt = SO_REUSEADDR;
+    setsockopt(listenfd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+
+    bzero(&server, sizeof(server));
+    server.sin_family = AF_INET;
+    server.sin_port = htons(PORT);
+    server.sin_addr.s_addr = htonl(INADDR_ANY);
+
+    if( bind(listenfd, (struct sockaddr*)&server, sizeof(server)) == -1) {
+        perror("bind() error.\n");
+        exit(1);
+    }
+
+    if( listen(listenfd, BACKLOG) == -1) {
+        perror("listen() error.\n");
+        exit(1);
+    }
+
+    addrlen = sizeof(client);
+    if((connfd = accept(listenfd, (struct sockaddr*)&client, &addrlen)) == -1) {
+        perror("accept() error.\n");
+        exit(1);
+    }
+
+    if (inet_addr("127.0.0.1"), client.sin_addr.s_addr) {
+        printf("You got a connection from port %d.\n", htons(client.sin_port));
+
+        while (1) {
+            if((num = recv(connfd, buf, MAXDATASIZE, 0)) >0 ) {
+                buf[num - 1] = '\0';
+                printf("A message from client : %s.\n", buf);
+                char tmpbuf[MAXDATASIZE] = "message received: ";
+                strcat(tmpbuf, buf);
+                // printf("A new message: %s.\n", tmpbuf);
+                if (send(connfd, tmpbuf, strlen(tmpbuf), 0) == -1) {
+                    perror("send() error.\n");
+                    exit(1);
+                }
+            }
+            else {
+                continue;
+            }
+        }
+
+        close(connfd);
+        close(listenfd);
+    }
+    else {
+        close(connfd);
+        close(listenfd);
+    }
+}
+
+#+END_SRC
