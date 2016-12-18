@@ -1,29 +1,3 @@
-
-#+TITLE: Lengyueyang's Emacs configuration
-#+AUTHOR: lengyueyang
-#+DATE: \today
-#+EMAIL: maoxiaoweihl@gmail.com
-
-#+OPTIONS: H:5 num:t toc:2 \n:nil @:t ::t |:t ^:nil -:t f:t *:t <:t
-#+OPTIONS: TeX:t LaTeX:nil skip:nil d:nil todo:t pri:nil tags:not-in-toc
-#+INFOJS_OPT: view:nil toc:nil ltoc:t mouse:underline buttons:0 path:http://orgmode.org/org-info.js
-#+EXPORT_SELECT_TAGS: export
-#+EXPORT_EXCLUDE_TAGS: noexport
-#+DESCRIPTION: A literate programming style exposition of my Emacs configuration beyond my spacemacs configuration
-#+KEYWORDS:
-#+LANGUAGE: en
-#+BABEL: :cache yes
-
-#+LATEX_CLASS: lengyue-org-article
-#+LATEX_CLASS_OPTIONS: [oneside,A4paper,12pt]
-#+LATEX_HEADER_EXTRA:
-#+LaTeX_HEADER: \geometry{left=2.5cm,right=2.5cm,top=2.5cm,bottom=2.5cm}
-#+LaTeX_HEADER: \graphicspath{{pic/}}
-#+LaTeX_HEADER: \hypersetup{colorlinks,linkcolor=black,filecolor=black,urlcolor=blue,citecolor=black}
-#+LaTeX_HEADER: \setcounter{secnumdepth}{4}
-#+LaTeX_HEADER: \titleformat{\paragraph}{\normalfont\normalsize\bfseries}{\theparagraph}{1em}{}
-#+LaTeX_HEADER: \linespread{1.2}
-
 * 网络通信三要素
 - IP地址
 
@@ -1555,7 +1529,7 @@ pselect函数的返回值有三种情况,返回值为0表示 #超时# ,返回值
 
 54. [T] 创建的子线程默认情况可联合的
 
-55. [T] 在TCP的客户端程序中,为了接受更多的数据,可以在接收数据调用打开read函数时,临时更改套接字接受缓冲区的大小
+55. [F] 在TCP的客户端程序中,为了接受更多的数据,可以在接收数据调用打开read函数时,临时更改套接字接受缓冲区的大小
 
 56. [F] SO_SNDLOWAT用来设置套接字发送缓冲区的发送低潮,当发送缓冲区的现有数据量大于发送低潮时,便可以发送数据,select返回可写(小于时触发I/O)
 
